@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { isAuthenticated } from "@/lib/auth";
+import { scrapeReels } from "@/lib/scraper";
 import {
   addMessage,
-  buildPlaceholderAssistantResponse,
   createSession,
   getSession,
   normalizeUsername,
+  storeReels,
   updateSessionTitle,
   validatePrompt,
   validateUsername,
@@ -50,13 +51,30 @@ export async function POST(request: Request) {
     await updateSessionTitle(session.id, prompt.slice(0, 80));
   }
 
-  const response = buildPlaceholderAssistantResponse(username, prompt);
-  await addMessage(session.id, "assistant", response, JSON.stringify({ phase: 2, placeholder: true }));
+  let reelsAnalyzed = session.reels.length;
+
+  if (reelsAnalyzed === 0) {
+    try {
+      const scraped = await scrapeReels(username);
+      await storeReels(session.id, username, scraped);
+      reelsAnalyzed = scraped.length;
+
+      const msg = `Scraped ${scraped.length} Reels from @${username}.\n\nPrompt: "${prompt}"\n\nWaiting for Phase 4 — Gemini video analysis is not connected yet.`;
+      await addMessage(session.id, "assistant", msg);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const msg = `Failed to scrape Reels for @${username}: ${errMsg}`;
+      await addMessage(session.id, "assistant", msg);
+      reelsAnalyzed = -1;
+    }
+  } else {
+    const msg = `Already found ${reelsAnalyzed} Reels for @${username}.\n\nPrompt: "${prompt}"\n\nWaiting for Phase 4 — Gemini video analysis is not connected yet.`;
+    await addMessage(session.id, "assistant", msg);
+  }
 
   return NextResponse.json({
     sessionId: session.id,
     username,
-    reelsAnalyzed: 0,
-    response,
+    reelsAnalyzed,
   });
 }

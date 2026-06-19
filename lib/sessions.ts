@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { db } from "@/lib/db";
+import type { ScrapedReel } from "@/lib/scraper";
 
 export type MessageRole = "user" | "assistant";
 
@@ -195,6 +196,16 @@ export function validateUsername(username: unknown): username is string {
 
 export function validatePrompt(prompt: unknown): prompt is string {
   return typeof prompt === "string" && prompt.trim().length > 0 && prompt.trim().length <= 4000;
+}
+
+export async function storeReels(sessionId: string, username: string, scraped: ScrapedReel[]) {
+  for (const reel of scraped) {
+    await db.execute({
+      sql: `INSERT OR IGNORE INTO reels (id, session_id, username, ig_shortcode, ig_url, thumbnail_url)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [randomUUID(), sessionId, username, reel.shortcode, reel.url, reel.thumbnailUrl],
+    });
+  }
 }
 
 export function buildPlaceholderAssistantResponse(username: string, prompt: string) {
