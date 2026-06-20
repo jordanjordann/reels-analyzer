@@ -7,6 +7,7 @@ import {
   addMessage,
   createSession,
   getSession,
+  getSessionByUsername,
   normalizeUsername,
   storeReels,
   updateReelGeminiFile,
@@ -19,6 +20,7 @@ import { runAnalysis } from "@/server/analysis/prompt-router";
 export const runtime = "nodejs";
 
 const REEL_URL_REGEX = /^https?:\/\/(www\.)?instagram\.com\/reel\/[\w-]+/i;
+const MAX_VIDEO_SECONDS_PER_PROMPT = parseInt(process.env.MAX_VIDEO_SECONDS_PER_PROMPT || "900", 10);
 
 function validateUrls(urls: unknown): urls is string[] {
   if (!Array.isArray(urls) || urls.length > 10) return false;
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
     urls?: unknown;
     prompt?: unknown;
     sessionId?: unknown;
+    confirmBudget?: boolean;
   } | null;
 
   if (!validateUrls(body?.urls)) {
@@ -50,7 +53,10 @@ export async function POST(request: Request) {
 
   const urls = (body?.urls ?? []) as string[];
   const prompt = (body.prompt as string).trim();
+  const confirmBudget = body?.confirmBudget === true;
   let session = typeof body.sessionId === "string" ? await getSession(body.sessionId) : null;
+
+  // If no sessionId provided, try to find existing session by username after fetching reels
 
   if (urls.length === 0 && (!session || session.reels.length === 0)) {
     return NextResponse.json(
@@ -90,8 +96,8 @@ export async function POST(request: Request) {
 
     const username = normalizeUsername(success[0].username);
 
-    if (session?.username !== username) {
-      session = null;
+    if (!session || session.username !== username) {
+      session = await getSessionByUsername(username);
     }
 
     if (!session) {
@@ -139,6 +145,30 @@ export async function POST(request: Request) {
         throw new Error("Session not found after storing reels.");
       }
       session = loaded;
+    }
+
+    // Budget check — only on first run (not when user confirms)
+    if (!confirmBudget) {
+      const totalDurationSec = session.reels.reduce(
+        (sum, r) => sum + (r.durationSec ?? 0),
+        0,
+      );
+      const pct = Math.round((totalDurationSec / MAX_VIDEO_SECONDS_PER_PROMPT) * 100);
+
+      if (totalDurationSec > MAX_VIDEO_SECONDS_PER_PROMPT || pct > 70) {
+        return NextResponse.json({
+          sessionId,
+          username,
+          reelsAnalyzed,
+          failedReels: failed,
+          budgetWarning: {
+            totalSeconds: totalDurationSec,
+            limitSeconds: MAX_VIDEO_SECONDS_PER_PROMPT,
+            over: totalDurationSec > MAX_VIDEO_SECONDS_PER_PROMPT,
+            pct,
+          },
+        });
+      }
     }
 
     const result = await runAnalysis(prompt, session.reels);

@@ -59,6 +59,27 @@ export async function getSession(id: string): Promise<SessionDetail | null> {
     return null;
   }
 
+  return buildSessionDetail(session);
+}
+
+export async function getSessionByUsername(username: string): Promise<SessionDetail | null> {
+  const normalized = normalizeUsername(username);
+  const sessionResult = await db.execute({
+    sql: "SELECT id, username, title, created_at, updated_at FROM sessions WHERE username = ? ORDER BY updated_at DESC LIMIT 1",
+    args: [normalized],
+  });
+  const session = sessionResult.rows[0];
+
+  if (!session) {
+    return null;
+  }
+
+  return buildSessionDetail(session);
+}
+
+async function buildSessionDetail(session: Record<string, unknown>): Promise<SessionDetail> {
+  const id = String(session.id);
+
   const [messagesResult, reelsResult] = await Promise.all([
     db.execute({
       sql: `
@@ -84,7 +105,7 @@ export async function getSession(id: string): Promise<SessionDetail | null> {
   ]);
 
   return {
-    id: String(session.id),
+    id,
     username: String(session.username),
     title: typeof session.title === "string" ? session.title : null,
     createdAt: String(session.created_at),

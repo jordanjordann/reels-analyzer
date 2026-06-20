@@ -8,7 +8,7 @@ import type { AnalysisResult } from "./types";
 
 
 export async function runAnalysis(prompt: string, reels: ReelRecord[]): Promise<AnalysisResult> {
-  const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "12", 10);
+  const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "10", 10);
   const reelsToAnalyze = reels.slice(0, maxReels);
   const reelsWithVideo = reelsToAnalyze.filter((r) => r.videoUrl);
 

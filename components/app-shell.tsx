@@ -39,6 +39,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { AnalysisResults } from "@/components/analysis-results";
+import { BudgetWarning, FailedReelsList } from "@/components/analysis-progress";
+import type { BudgetWarningData, FailedReelData } from "@/components/analysis-progress";
 import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
 import { exportAnalysisToMarkdown, downloadMarkdown } from "@/shared/analysis/export-analysis";
 import { cn } from "@/shared/utils";
@@ -159,12 +161,22 @@ const ConversationPanel = function ConversationPanel({
   lastError,
   onRetry,
   onClearError,
+  budgetWarning,
+  onBudgetContinue,
+  onBudgetCancel,
+  failedReels,
+  onRetryFailed,
 }: {
   activeSession: SessionDetail | null;
   analysisStage: AnalysisStage;
   lastError: string | null;
   onRetry: () => void;
   onClearError: () => void;
+  budgetWarning: BudgetWarningData | null;
+  onBudgetContinue: () => void;
+  onBudgetCancel: () => void;
+  failedReels: FailedReelData[];
+  onRetryFailed: (urls: string[]) => void;
 }) {
 
   const messageElements = useMemo(() => {
@@ -271,6 +283,18 @@ const ConversationPanel = function ConversationPanel({
             <LoaderCircleIcon className="size-4 animate-spin text-accent" aria-hidden="true" />
             <span className="text-sm text-accent">{STAGE_LABELS[analysisStage]}</span>
           </div>
+        ) : null}
+
+        {failedReels.length > 0 && analysisStage === "idle" ? (
+          <FailedReelsList failedReels={failedReels} onRetry={onRetryFailed} />
+        ) : null}
+
+        {budgetWarning ? (
+          <BudgetWarning
+            data={budgetWarning}
+            onContinue={onBudgetContinue}
+            onCancel={onBudgetCancel}
+          />
         ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border bg-background/35 p-4">
@@ -383,6 +407,9 @@ export function AppShell() {
   const [submitting, setSubmitting] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
+  const [budgetWarning, setBudgetWarning] = useState<BudgetWarningData | null>(null);
+  const [failedReels, setFailedReels] = useState<FailedReelData[]>([]);
+  const [pendingConfirm, setPendingConfirm] = useState<{ urls: string[]; prompt: string; sessionId: string } | null>(null);
 
   const sessionsQuery = useSessions();
   const sessionQuery = useSession(activeSessionId);
@@ -395,6 +422,9 @@ export function AppShell() {
   function loadSession(id: string) {
     setError(null);
     setActiveSessionId(id);
+    setBudgetWarning(null);
+    setFailedReels([]);
+    setPendingConfirm(null);
   }
 
   function handleDeleteSession(id: string) {
@@ -417,17 +447,46 @@ export function AppShell() {
     setPrompt("");
     setError(null);
     setLastError(null);
+    setBudgetWarning(null);
+    setFailedReels([]);
+    setPendingConfirm(null);
   }
 
   function handleClearError() {
     setLastError(null);
   }
 
-  const runAnalysis = useCallback(async (cleanUrls: string[], cleanPrompt: string) => {
+  function handleBudgetContinue() {
+    if (pendingConfirm) {
+      void runAnalysis(pendingConfirm.urls, pendingConfirm.prompt, pendingConfirm.sessionId, true);
+      setBudgetWarning(null);
+      setPendingConfirm(null);
+    }
+  }
+
+  function handleBudgetCancel() {
+    setBudgetWarning(null);
+    setPendingConfirm(null);
+    setSubmitting(false);
+    setAnalysisStage("idle");
+  }
+
+  function handleRetryFailed(failedUrls: string[]) {
+    setUrls(failedUrls);
+    setFailedReels([]);
+    const userMessage = activeSession?.messages.find((m) => m.role === "user");
+    if (userMessage) {
+      void runAnalysis(failedUrls, userMessage.content);
+    }
+  }
+
+  const runAnalysis = useCallback(async (cleanUrls: string[], cleanPrompt: string, existingSessionId?: string, confirmBudget?: boolean) => {
     setError(null);
     setLastError(null);
     setSubmitting(true);
     setAnalysisStage("fetching");
+    setBudgetWarning(null);
+    setFailedReels([]);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -436,16 +495,41 @@ export function AppShell() {
         body: JSON.stringify({
           urls: cleanUrls,
           prompt: cleanPrompt,
-          sessionId: activeSession?.id ?? undefined,
+          sessionId: existingSessionId ?? activeSession?.id ?? undefined,
+          confirmBudget,
         }),
       });
-      const data = (await response.json()) as { sessionId?: string; error?: string; reelsAnalyzed?: number; username?: string };
+      const data = (await response.json()) as {
+        sessionId?: string;
+        error?: string;
+        reelsAnalyzed?: number;
+        username?: string;
+        failedReels?: FailedReelData[];
+        budgetWarning?: BudgetWarningData;
+      };
 
       if (!response.ok || !data.sessionId) {
         const errMsg = data.error ?? "Unable to save prompt.";
         setError(errMsg);
         setLastError(errMsg);
         return;
+      }
+
+      // Handle budget warning
+      if (data.budgetWarning) {
+        setBudgetWarning(data.budgetWarning);
+        setPendingConfirm({ urls: cleanUrls, prompt: cleanPrompt, sessionId: data.sessionId });
+        if (data.failedReels && data.failedReels.length > 0) {
+          setFailedReels(data.failedReels);
+        }
+        setSubmitting(false);
+        setAnalysisStage("idle");
+        return;
+      }
+
+      // Handle failed reels
+      if (data.failedReels && data.failedReels.length > 0) {
+        setFailedReels(data.failedReels);
       }
 
       if (data.reelsAnalyzed === 0) {
@@ -463,10 +547,12 @@ export function AppShell() {
       setError(errMsg);
       setLastError(errMsg);
     } finally {
-      setSubmitting(false);
-      setAnalysisStage("idle");
+      if (!budgetWarning) {
+        setSubmitting(false);
+        setAnalysisStage("idle");
+      }
     }
-  }, [activeSession, queryClient]);
+  }, [activeSession, queryClient, budgetWarning]);
 
   async function submitPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -576,6 +662,11 @@ export function AppShell() {
               lastError={lastError}
               onRetry={handleRetry}
               onClearError={handleClearError}
+              budgetWarning={budgetWarning}
+              onBudgetContinue={handleBudgetContinue}
+              onBudgetCancel={handleBudgetCancel}
+              failedReels={failedReels}
+              onRetryFailed={handleRetryFailed}
             />
             <PromptForm
               urls={urls}

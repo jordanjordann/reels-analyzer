@@ -135,6 +135,7 @@ async function extractMetadata(page: Page): Promise<{
       thumbnailUrl: null as string | null,
     };
 
+    // Strategy 1: og:description split by " · "
     const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute("content");
     if (ogDesc) {
       const parts = ogDesc.split(" · ");
@@ -144,6 +145,47 @@ async function extractMetadata(page: Page): Promise<{
       } else {
         data.caption = ogDesc;
       }
+    }
+
+    // Strategy 2: og:url contains /username/reel/...
+    if (!data.username) {
+      const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute("content");
+      if (ogUrl) {
+        const match = ogUrl.match(/instagram\.com\/([^/]+)\/reel\//);
+        if (match) data.username = match[1];
+      }
+    }
+
+    // Strategy 3: canonical link contains /username/reel/...
+    if (!data.username) {
+      const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute("href");
+      if (canonical) {
+        const match = canonical.match(/instagram\.com\/([^/]+)\/reel\//);
+        if (match) data.username = match[1];
+      }
+    }
+
+    // Strategy 4: article:author meta tag
+    if (!data.username) {
+      const articleAuthor = document.querySelector('meta[property="article:author"]')?.getAttribute("content");
+      if (articleAuthor) {
+        // Could be a URL or @username
+        const match = articleAuthor.match(/instagram\.com\/([^/]+)/) || articleAuthor.match(/^@?(.+)$/);
+        if (match) data.username = match[1].replace(/^@/, "");
+      }
+    }
+
+    // Strategy 5: profile:username meta tag
+    if (!data.username) {
+      const profileUsername = document.querySelector('meta[property="profile:username"]')?.getAttribute("content");
+      if (profileUsername) data.username = profileUsername;
+    }
+
+    // Strategy 6: document.title often contains "@username on Instagram"
+    if (!data.username) {
+      const title = document.title;
+      const match = title.match(/^(@?\w+)\s+on\s+Instagram/i) || title.match(/^(@?\w+)\s*[:•·]/i);
+      if (match) data.username = match[1].replace(/^@/, "");
     }
 
     const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute("content");
@@ -177,12 +219,18 @@ async function extractMetadata(page: Page): Promise<{
 
   const pageTextData = await page.evaluate(() => {
     const data = {
+      username: "",
       viewCount: null as number | null,
       postDate: null as string | null,
       durationSec: null as number | null,
     };
 
     const bodyText = document.body.innerText;
+
+    // Try to extract username from body text patterns like "@username" near the top
+    const usernameMatch = bodyText.match(/^(@?\w+)/m) || bodyText.match(/Instagram\s+post[:\s]+(@?\w+)/i);
+    if (usernameMatch) data.username = usernameMatch[1].replace(/^@/, "");
+
     const viewPatterns = [
       /(\d+(?:\.\d+)?[KMB]?)\s*views?/i,
       /(\d+(?:\.\d+)?[KMB])\s*plays?/i,
@@ -214,6 +262,7 @@ async function extractMetadata(page: Page): Promise<{
     return data;
   });
 
+  result.username = result.username || pageTextData.username;
   result.viewCount = result.viewCount || pageTextData.viewCount;
   result.postDate = result.postDate || pageTextData.postDate;
   result.durationSec = result.durationSec || pageTextData.durationSec;
