@@ -1,13 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { XIcon, LoaderCircleIcon, AlertTriangleIcon } from "lucide-react";
+import { XIcon, LoaderCircleIcon, AlertTriangleIcon, CalendarIcon, EyeIcon, FilmIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
 import { exportAnalysisToMarkdown, downloadMarkdown } from "@/shared/analysis/export-analysis";
 import { AnalysisResults } from "@/components/analysis-results";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { useAnalysisReelDetail } from "@/api/analyses/hooks";
+
+function formatViews(count: number | null) {
+  if (count == null) return null;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toLocaleString();
+}
+
+function formatDate(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
+}
 
 export function AnalysisModal({
   shortcode,
@@ -37,6 +51,9 @@ export function AnalysisModal({
 
   const reel = data?.reel ?? null;
   const structured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
+  const title = reel?.caption?.trim() || `Reel ${shortcode}`;
+  const views = formatViews(reel?.viewCount ?? null);
+  const date = formatDate(reel?.postDate ?? null);
 
   return (
     <div
@@ -49,21 +66,13 @@ export function AnalysisModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
-          <div>
-            <h2 className="font-heading text-lg font-semibold tracking-[-0.04em]">
-              @{username} — {shortcode}
-            </h2>
-            {reel?.postDate && (
-              <p className="text-sm text-muted-foreground">
-                {new Date(reel.postDate).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
-                {reel.viewCount != null && ` · ${reel.viewCount.toLocaleString()} views`}
-              </p>
-            )}
-          </div>
+          <h2 className="line-clamp-1 font-heading text-lg font-semibold tracking-[-0.04em]">
+            {title}
+          </h2>
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg p-2 transition-colors hover:bg-secondary"
+            className="shrink-0 rounded-lg p-2 transition-colors hover:bg-secondary"
           >
             <XIcon className="size-5" aria-hidden="true" />
           </button>
@@ -82,13 +91,28 @@ export function AnalysisModal({
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
-                  No thumbnail
+                  <FilmIcon className="size-8" aria-hidden="true" />
                 </div>
               )}
             </div>
-            {reel?.caption && (
-              <p className="mt-3 line-clamp-4 text-sm text-muted-foreground">{reel.caption}</p>
-            )}
+
+            <div className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
+              {views && (
+                <div className="flex items-center gap-2">
+                  <EyeIcon className="size-4 shrink-0 text-accent" aria-hidden="true" />
+                  <span>{views} views</span>
+                </div>
+              )}
+              {date && (
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="size-4 shrink-0 text-accent" aria-hidden="true" />
+                  <span>{date}</span>
+                </div>
+              )}
+              {reel?.caption && (
+                <p className="line-clamp-3 text-xs leading-relaxed">{reel.caption}</p>
+              )}
+            </div>
           </div>
 
           {/* Right: Analysis */}
