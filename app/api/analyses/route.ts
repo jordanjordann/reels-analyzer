@@ -39,11 +39,13 @@ async function getUserReels(username: string) {
         r.post_date,
         r.caption,
         r.created_at,
-        CASE WHEN m.id IS NOT NULL THEN 1 ELSE 0 END AS has_analysis
+        CASE WHEN EXISTS (
+          SELECT 1 FROM messages m
+          WHERE m.session_id = r.session_id
+            AND m.role = 'assistant'
+            AND m.content LIKE '%"reels"%'
+        ) THEN 1 ELSE 0 END AS has_analysis
       FROM reels r
-      LEFT JOIN messages m ON m.session_id = r.session_id
-        AND m.role = 'assistant'
-        AND m.content LIKE '%"reels"%'
       WHERE r.username = ?
       ORDER BY r.created_at DESC
     `,
