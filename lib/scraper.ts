@@ -3,9 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { extractVideoUrl as extractVideoUrlYtDlp } from "@/lib/downloader";
+import { createHash } from "node:crypto";
 
 const IG_BASE = "https://www.instagram.com";
 const SESSION_FILE = join(tmpdir(), "opencode-ig-session.json");
+const REEL_CACHE_FILE = join(tmpdir(), "reels-analyzer", "reel-cache.json");
+const MAX_CONCURRENT_REELS = 3;
 
 export type ScrapedReel = {
   shortcode: string;
@@ -75,6 +78,82 @@ type ReelPageData = {
   postDate: string | null;
   durationSec: number | null;
 };
+
+type ReelCacheEntry = {
+  shortcode: string;
+  videoUrl: string | null;
+  caption: string | null;
+  viewCount: number | null;
+  postDate: string | null;
+  durationSec: number | null;
+  cachedAt: number;
+};
+
+type ReelCache = Record<string, ReelCacheEntry>;
+
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function loadReelCache(): ReelCache {
+  try {
+    if (existsSync(REEL_CACHE_FILE)) {
+      const raw = readFileSync(REEL_CACHE_FILE, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn("Failed to load reel cache:", e);
+  }
+  return {};
+}
+
+function saveReelCache(cache: ReelCache): void {
+  try {
+    const dir = join(tmpdir(), "reels-analyzer");
+    if (!existsSync(dir)) {
+      require("fs").mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(REEL_CACHE_FILE, JSON.stringify(cache), "utf-8");
+  } catch (e) {
+    console.warn("Failed to save reel cache:", e);
+  }
+}
+
+function getCacheKey(shortcode: string): string {
+  return createHash("md5").update(shortcode).digest("hex");
+}
+
+function getCachedReel(shortcode: string): ReelPageData | null {
+  const cache = loadReelCache();
+  const key = getCacheKey(shortcode);
+  const entry = cache[key];
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > CACHE_TTL_MS) {
+    delete cache[key];
+    saveReelCache(cache);
+    return null;
+  }
+  return {
+    videoUrl: entry.videoUrl,
+    caption: entry.caption,
+    viewCount: entry.viewCount,
+    postDate: entry.postDate,
+    durationSec: entry.durationSec,
+  };
+}
+
+function setCachedReel(shortcode: string, data: ReelPageData): void {
+  const cache = loadReelCache();
+  const key = getCacheKey(shortcode);
+  cache[key] = {
+    shortcode,
+    videoUrl: data.videoUrl,
+    caption: data.caption,
+    viewCount: data.viewCount,
+    postDate: data.postDate,
+    durationSec: data.durationSec,
+    cachedAt: Date.now(),
+  };
+  saveReelCache(cache);
+}
 
 async function extractReelData(page: import("playwright").Page, reelUrl: string): Promise<ReelPageData> {
   const result: ReelPageData = {
@@ -593,32 +672,48 @@ export async function scrapeReels(targetUsername: string): Promise<ScrapedReel[]
       throw new Error(`No Reels found for @${targetUsername}. The account may have no Reels or is private.`);
     }
 
-    // Extract video URLs and metadata from individual reel pages
+    // Extract video URLs and metadata from individual reel pages (concurrent with caching)
     const maxVideos = Math.min(reels.length, parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "12", 10));
-    for (let i = 0; i < maxVideos; i++) {
-      const reel = reels[i];
-      if (reel) {
-        const data = await extractReelData(page, reel.url);
-        if (!reel.videoUrl && data.videoUrl) {
-          reel.videoUrl = data.videoUrl;
-        }
-        if (!reel.caption && data.caption) {
-          reel.caption = data.caption;
-        }
-        if (!reel.viewCount && data.viewCount) {
-          reel.viewCount = data.viewCount;
-        }
-        if (!reel.postDate && data.postDate) {
-          reel.postDate = data.postDate;
-        }
-        if (!reel.durationSec && data.durationSec) {
-          reel.durationSec = data.durationSec;
-        }
-        // If redirected to login, session is dead — bail out early
-        if (page.url().includes("accounts/login")) {
-          console.warn("Instagram session expired while extracting video URLs.");
-          break;
-        }
+    const reelsToProcess = reels.slice(0, maxVideos);
+
+    const processReel = async (reel: ScrapedReel, pageNum: number): Promise<void> => {
+      // Check cache first
+      const cached = getCachedReel(reel.shortcode);
+      if (cached) {
+        console.log(`Cache hit for reel ${reel.shortcode}`);
+        if (!reel.videoUrl && cached.videoUrl) reel.videoUrl = cached.videoUrl;
+        if (!reel.caption && cached.caption) reel.caption = cached.caption;
+        if (!reel.viewCount && cached.viewCount) reel.viewCount = cached.viewCount;
+        if (!reel.postDate && cached.postDate) reel.postDate = cached.postDate;
+        if (!reel.durationSec && cached.durationSec) reel.durationSec = cached.durationSec;
+        return;
+      }
+
+      console.log(`Processing reel ${pageNum}/${maxVideos}: ${reel.shortcode}`);
+      const data = await extractReelData(page, reel.url);
+
+      // Cache the results
+      setCachedReel(reel.shortcode, data);
+
+      if (!reel.videoUrl && data.videoUrl) reel.videoUrl = data.videoUrl;
+      if (!reel.caption && data.caption) reel.caption = data.caption;
+      if (!reel.viewCount && data.viewCount) reel.viewCount = data.viewCount;
+      if (!reel.postDate && data.postDate) reel.postDate = data.postDate;
+      if (!reel.durationSec && data.durationSec) reel.durationSec = data.durationSec;
+    }
+
+    // Process reels in batches of MAX_CONCURRENT_REELS
+    for (let i = 0; i < reelsToProcess.length; i += MAX_CONCURRENT_REELS) {
+      const batch = reelsToProcess.slice(i, i + MAX_CONCURRENT_REELS);
+      const batchNum = Math.floor(i / MAX_CONCURRENT_REELS) + 1;
+      console.log(`Processing batch ${batchNum} (${batch.length} reels)`);
+
+      await Promise.all(batch.map((reel, idx) => processReel(reel, i + idx + 1)));
+
+      // If redirected to login, session is dead — bail out early
+      if (page.url().includes("accounts/login")) {
+        console.warn("Instagram session expired while extracting video URLs.");
+        break;
       }
     }
   } finally {

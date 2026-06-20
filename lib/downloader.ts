@@ -5,11 +5,15 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ffmpegPath = require("ffmpeg-static") as string;
+
 const execFileAsync = promisify(execFile);
 
 const DOWNLOAD_DIR = join(tmpdir(), "reels-analyzer");
 const YTDLP_PATHS = [
   process.env.YTDLP_PATH,
+  "/Users/jordanatha/.local/python/bin/yt-dlp",
   "/usr/local/bin/yt-dlp",
   "/opt/homebrew/bin/yt-dlp",
   "/Users/jordanatha/Library/Python/3.9/bin/yt-dlp",
@@ -82,7 +86,8 @@ export async function downloadVideo(
         maxBuffer: 10 * 1024 * 1024,
         env: {
           ...process.env,
-          PATH: `${process.env.PATH}:/Users/jordanatha/Library/Python/3.9/bin`,
+          PATH: `${process.env.PATH}:/Users/jordanatha/.local/python/bin`,
+          FFMPEG: ffmpegPath,
         },
       });
 
@@ -163,7 +168,8 @@ export async function extractVideoUrl(
       maxBuffer: 5 * 1024 * 1024,
       env: {
         ...process.env,
-        PATH: `${process.env.PATH}:/Users/jordanatha/Library/Python/3.9/bin`,
+        PATH: `${process.env.PATH}:/Users/jordanatha/.local/python/bin`,
+        FFMPEG: ffmpegPath,
       },
     });
 
