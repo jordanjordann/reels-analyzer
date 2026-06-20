@@ -50,7 +50,23 @@ export function AnalysisModal({
   }, [handleClose]);
 
   const reel = data?.reel ?? null;
-  const structured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
+  const fullStructured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
+
+  // Try to find the specific reel, fallback to full analysis
+  let structured = fullStructured;
+  if (fullStructured && fullStructured.reels.length > 1) {
+    const matchingReel = fullStructured.reels.find(
+      (r) => r.shortcode.toLowerCase() === shortcode.toLowerCase(),
+    );
+    if (matchingReel) {
+      structured = {
+        reels: [matchingReel],
+        crossReel: fullStructured.crossReel,
+        overallViralIntelligenceScore: fullStructured.overallViralIntelligenceScore,
+      };
+    }
+  }
+
   const title = reel?.caption?.trim() || `Reel ${shortcode}`;
   const views = formatViews(reel?.viewCount ?? null);
   const date = formatDate(reel?.postDate ?? null);
