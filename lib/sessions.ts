@@ -29,6 +29,7 @@ export type ReelRecord = {
   igShortcode: string;
   igUrl: string;
   thumbnailUrl: string | null;
+  videoUrl: string | null;
   durationSec: number | null;
   viewCount: number | null;
   postDate: string | null;
@@ -116,7 +117,7 @@ export async function getSession(id: string): Promise<SessionDetail | null> {
     db.execute({
       sql: `
         SELECT
-          id, session_id, username, ig_shortcode, ig_url, thumbnail_url,
+          id, session_id, username, ig_shortcode, ig_url, thumbnail_url, video_url,
           duration_sec, view_count, post_date, caption, gemini_file_uri,
           gemini_file_expires_at, created_at
         FROM reels
@@ -140,6 +141,7 @@ export async function getSession(id: string): Promise<SessionDetail | null> {
       igShortcode: String(row.ig_shortcode),
       igUrl: String(row.ig_url),
       thumbnailUrl: typeof row.thumbnail_url === "string" ? row.thumbnail_url : null,
+      videoUrl: typeof row.video_url === "string" ? row.video_url : null,
       durationSec: typeof row.duration_sec === "number" ? row.duration_sec : null,
       viewCount: typeof row.view_count === "number" ? row.view_count : null,
       postDate: typeof row.post_date === "string" ? row.post_date : null,
@@ -201,13 +203,32 @@ export function validatePrompt(prompt: unknown): prompt is string {
 export async function storeReels(sessionId: string, username: string, scraped: ScrapedReel[]) {
   for (const reel of scraped) {
     await db.execute({
-      sql: `INSERT OR IGNORE INTO reels (id, session_id, username, ig_shortcode, ig_url, thumbnail_url)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [randomUUID(), sessionId, username, reel.shortcode, reel.url, reel.thumbnailUrl],
+      sql: `INSERT OR IGNORE INTO reels (id, session_id, username, ig_shortcode, ig_url, thumbnail_url, video_url, caption, view_count, post_date, duration_sec)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        randomUUID(),
+        sessionId,
+        username,
+        reel.shortcode,
+        reel.url,
+        reel.thumbnailUrl,
+        reel.videoUrl,
+        reel.caption,
+        reel.viewCount,
+        reel.postDate,
+        reel.durationSec,
+      ],
     });
   }
 }
 
-export function buildPlaceholderAssistantResponse(username: string, prompt: string) {
-  return `Phase 2 saved your prompt for @${username}.\n\nPrompt received: "${prompt.trim()}"\n\nInstagram scraping and Gemini video analysis are not connected yet. In Phase 3/4, this same submit flow will fetch recent Reels, upload video context to Gemini, apply the hidden analysis rubric, and replace this placeholder with a grounded response.`;
+export async function updateReelGeminiFile(
+  reelId: string,
+  geminiFileUri: string | null,
+  geminiFileExpiresAt: string | null,
+) {
+  await db.execute({
+    sql: "UPDATE reels SET gemini_file_uri = ?, gemini_file_expires_at = ? WHERE id = ?",
+    args: [geminiFileUri, geminiFileExpiresAt, reelId],
+  });
 }

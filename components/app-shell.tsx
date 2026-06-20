@@ -1,8 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useState } from "react";
+import { FormEvent, useCallback, useMemo, useState } from "react";
 import {
-  AlertCircleIcon,
   BotIcon,
   DatabaseIcon,
   FilmIcon,
@@ -34,6 +33,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { cn } from "@/lib/utils";
 
 type SessionListItem = {
@@ -68,6 +68,230 @@ const dateFormatter = new Intl.DateTimeFormat("en", {
   hour: "numeric",
   minute: "2-digit",
 });
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return dateFormatter.format(date);
+}
+
+const SessionRail = function SessionRail({
+  sessions,
+  activeSession,
+  loadingSessions,
+  loadingSessionId,
+  loadSession,
+}: {
+  sessions: SessionListItem[];
+  activeSession: SessionDetail | null;
+  loadingSessions: boolean;
+  loadingSessionId: string | null;
+  loadSession: (id: string) => Promise<SessionDetail | null>;
+}) {
+  return (
+    <div className="flex min-h-0 flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Session rail</p>
+        {loadingSessions ? <LoaderCircleIcon className="size-4 animate-spin text-muted-foreground" aria-hidden="true" /> : null}
+      </div>
+
+      <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
+        {sessions.length === 0 ? (
+          <div className="rounded-2xl border border-sidebar-border bg-sidebar-accent p-4">
+            <div className="flex items-start gap-3">
+              <HistoryIcon className="mt-0.5 size-4 text-accent" aria-hidden="true" />
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium">No saved conversations yet</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Submit a username and prompt to create the first persistent session.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {sessions.map((session) => {
+          const active = activeSession?.id === session.id;
+          return (
+            <button
+              className={cn(
+                "rounded-2xl border border-sidebar-border bg-sidebar-accent p-4 text-left transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                active && "border-accent bg-secondary",
+              )}
+              disabled={loadingSessionId === session.id}
+              key={session.id}
+              type="button"
+              onClick={() => loadSession(session.id)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm font-semibold text-foreground">@{session.username}</p>
+                  <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                    {session.lastPromptPreview ?? session.title ?? "Manual session"}
+                  </p>
+                </div>
+                {loadingSessionId === session.id ? (
+                  <LoaderCircleIcon className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                ) : null}
+              </div>
+              <p className="mt-3 font-mono text-xs text-muted-foreground">{formatDate(session.updatedAt)}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const ConversationPanel = function ConversationPanel({
+  activeSession,
+}: {
+  activeSession: SessionDetail | null;
+}) {
+  const messageElements = useMemo(() => {
+    if (!activeSession || activeSession.messages.length === 0) return null;
+    return activeSession.messages.map((message) => (
+      <article
+        className={cn(
+          "max-w-[88%] rounded-2xl border p-4",
+          message.role === "user"
+            ? "ml-auto bg-primary text-primary-foreground"
+            : "bg-secondary/70 text-secondary-foreground",
+        )}
+        key={message.id}
+      >
+        <div className="mb-2 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.16em] opacity-80">
+          {message.role === "user" ? (
+            <UserIcon className="size-3.5" aria-hidden="true" />
+          ) : (
+            <BotIcon className="size-3.5" aria-hidden="true" />
+          )}
+          {message.role === "user" ? "You" : "Analyzer"}
+        </div>
+        {message.role === "user" ? (
+          <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+        ) : (
+          <MarkdownRenderer content={message.content} />
+        )}
+        <p className="mt-3 font-mono text-xs opacity-70">{formatDate(message.createdAt)}</p>
+      </article>
+    ));
+  }, [activeSession]);
+
+  return (
+    <Card className="enter-rise flex min-h-[28rem] flex-col border lab-panel-strong lg:min-h-0 lg:max-h-[65vh]">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="font-heading text-2xl tracking-[-0.04em]">Conversation</CardTitle>
+            <CardDescription>
+              {activeSession
+                ? `${activeSession.messages.length} persisted message${activeSession.messages.length === 1 ? "" : "s"}`
+                : "No active session yet"}
+            </CardDescription>
+          </div>
+          <MessageSquareTextIcon className="size-5 text-accent" aria-hidden="true" />
+        </div>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border bg-background/35 p-4">
+          {!activeSession || activeSession.messages.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-center">
+              <div className="flex max-w-md flex-col items-center gap-3">
+                <div className="flex size-12 items-center justify-center rounded-2xl border bg-secondary text-accent">
+                  <SparklesIcon className="size-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-xl font-semibold tracking-[-0.04em]">Ready for analysis</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Enter an Instagram username and prompt. Reels will be scraped and analyzed by Gemini 1.5 Pro.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {messageElements}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const PromptForm = function PromptForm({
+  username,
+  setUsername,
+  prompt,
+  setPrompt,
+  error,
+  submitting,
+  onSubmit,
+}: {
+  username: string;
+  setUsername: (v: string) => void;
+  prompt: string;
+  setPrompt: (v: string) => void;
+  error: string | null;
+  submitting: boolean;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form className="enter-rise flex flex-col gap-5" onSubmit={onSubmit}>
+      <Card className="border lab-panel">
+        <CardHeader>
+          <CardTitle className="font-heading text-2xl tracking-[-0.04em]">Prompt panel</CardTitle>
+          <CardDescription>Reels are scraped and analyzed by Gemini 1.5 Pro with a structured rubric.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            <Field data-invalid={Boolean(error?.includes("username"))}>
+              <FieldLabel htmlFor="username">Instagram username</FieldLabel>
+              <Input
+                id="username"
+                placeholder="kyliejenner"
+                value={username}
+                aria-invalid={Boolean(error?.includes("username"))}
+                disabled={submitting}
+                onChange={(event) => setUsername(event.target.value.replace(/^@+/, ""))}
+              />
+              <FieldDescription>Use the handle only. The scraper arrives in Phase 3.</FieldDescription>
+            </Field>
+
+            <Field data-invalid={Boolean(error && !error.includes("username"))}>
+              <FieldLabel htmlFor="prompt">Analysis prompt</FieldLabel>
+              <Textarea
+                id="prompt"
+                className="min-h-36 resize-none"
+                placeholder="What recurring hook patterns does this creator use?"
+                value={prompt}
+                aria-invalid={Boolean(error && !error.includes("username"))}
+                disabled={submitting}
+                onChange={(event) => setPrompt(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+              />
+              <FieldDescription>Press Enter to submit. Use Shift+Enter for a new line.</FieldDescription>
+              <div aria-live="polite">{error ? <FieldError>{error}</FieldError> : null}</div>
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      <Button className="h-12" disabled={submitting} type="submit">
+        {submitting ? <LoaderCircleIcon data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <SendIcon data-icon="inline-start" aria-hidden="true" />}
+        {submitting ? "Saving analysis" : "Send prompt"}
+      </Button>
+
+      <div className="flex items-start gap-3 rounded-2xl border bg-secondary/45 p-4 text-sm leading-6 text-muted-foreground">
+        <SparklesIcon className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+        Powered by Gemini 1.5 Pro — videos are uploaded to the File API for analysis against the hidden rubric.
+      </div>
+    </form>
+  );
+};
 
 export function AppShell() {
   const [unlocked, setUnlocked] = useState(false);
@@ -212,58 +436,13 @@ export function AppShell() {
               </Button>
             </div>
 
-            <div className="flex min-h-0 flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Session rail</p>
-                {loadingSessions ? <LoaderCircleIcon className="size-4 animate-spin text-muted-foreground" aria-hidden="true" /> : null}
-              </div>
-
-              <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
-                {sessions.length === 0 ? (
-                  <div className="rounded-2xl border border-sidebar-border bg-sidebar-accent p-4">
-                    <div className="flex items-start gap-3">
-                      <HistoryIcon className="mt-0.5 size-4 text-accent" aria-hidden="true" />
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium">No saved conversations yet</p>
-                        <p className="text-sm leading-6 text-muted-foreground">
-                          Submit a username and prompt to create the first persistent session.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                {sessions.map((session) => {
-                  const active = activeSession?.id === session.id;
-
-                  return (
-                    <button
-                      className={cn(
-                        "rounded-2xl border border-sidebar-border bg-sidebar-accent p-4 text-left transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                        active && "border-accent bg-secondary",
-                      )}
-                      disabled={loadingSessionId === session.id}
-                      key={session.id}
-                      type="button"
-                      onClick={() => loadSession(session.id)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-mono text-sm font-semibold text-foreground">@{session.username}</p>
-                          <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
-                            {session.lastPromptPreview ?? session.title ?? "Manual session"}
-                          </p>
-                        </div>
-                        {loadingSessionId === session.id ? (
-                          <LoaderCircleIcon className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
-                        ) : null}
-                      </div>
-                      <p className="mt-3 font-mono text-xs text-muted-foreground">{formatDate(session.updatedAt)}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <SessionRail
+              sessions={sessions}
+              activeSession={activeSession}
+              loadingSessions={loadingSessions}
+              loadingSessionId={loadingSessionId}
+              loadSession={loadSession}
+            />
 
             <div className="hidden flex-col gap-3 lg:flex">
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Secure state</p>
@@ -290,148 +469,34 @@ export function AppShell() {
         <section className="flex min-h-dvh flex-1 flex-col gap-5 p-5 sm:p-6 lg:p-8">
           <header className="enter-rise flex flex-col justify-between gap-5 rounded-3xl border p-5 lab-panel md:flex-row md:items-center">
             <div className="flex max-w-3xl flex-col gap-2">
-              <p className="font-mono text-xs uppercase tracking-[0.22em] text-accent">Persistence + UI</p>
+              <p className="font-mono text-xs uppercase tracking-[0.22em] text-accent">Gemini Analysis</p>
               <h2 className="font-heading text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">
                 {activeSession ? `@${activeSession.username}` : "Start a Reels analysis session"}
               </h2>
               <p className="text-sm leading-6 text-muted-foreground sm:text-base">
-                Prompts and placeholder assistant responses are persisted now. Instagram scraping and Gemini video
-                analysis will plug into this same flow in later phases.
+                Reels are scraped, uploaded to the Gemini File API, and analyzed by Gemini 1.5 Pro using a structured
+                rubric. Analysis results and raw Gemini responses are persisted to SQLite.
               </p>
             </div>
             <div className="rounded-full border bg-secondary px-3 py-1 font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              Phase 02
+              Phase 04
             </div>
           </header>
 
           <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-[1fr_0.42fr]">
-            <Card className="enter-rise flex min-h-[28rem] flex-col border lab-panel-strong lg:min-h-0">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="font-heading text-2xl tracking-[-0.04em]">Conversation</CardTitle>
-                    <CardDescription>
-                      {activeSession
-                        ? `${activeSession.messages.length} persisted message${activeSession.messages.length === 1 ? "" : "s"}`
-                        : "No active session yet"}
-                    </CardDescription>
-                  </div>
-                  <MessageSquareTextIcon className="size-5 text-accent" aria-hidden="true" />
-                </div>
-              </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border bg-background/35 p-4">
-                  {!activeSession || activeSession.messages.length === 0 ? (
-                    <div className="flex flex-1 items-center justify-center text-center">
-                      <div className="flex max-w-md flex-col items-center gap-3">
-                        <div className="flex size-12 items-center justify-center rounded-2xl border bg-secondary text-accent">
-                          <SparklesIcon className="size-5" aria-hidden="true" />
-                        </div>
-                        <div>
-                          <h3 className="font-heading text-xl font-semibold tracking-[-0.04em]">Ready for a prompt</h3>
-                          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                            Enter an Instagram username, ask a question, and Phase 2 will save the exchange to SQLite.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {activeSession?.messages.map((message) => (
-                    <article
-                      className={cn(
-                        "max-w-[88%] rounded-2xl border p-4",
-                        message.role === "user"
-                          ? "ml-auto bg-primary text-primary-foreground"
-                          : "bg-secondary/70 text-secondary-foreground",
-                      )}
-                      key={message.id}
-                    >
-                      <div className="mb-2 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.16em] opacity-80">
-                        {message.role === "user" ? (
-                          <UserIcon className="size-3.5" aria-hidden="true" />
-                        ) : (
-                          <BotIcon className="size-3.5" aria-hidden="true" />
-                        )}
-                        {message.role === "user" ? "You" : "Analyzer"}
-                      </div>
-                      <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
-                      <p className="mt-3 font-mono text-xs opacity-70">{formatDate(message.createdAt)}</p>
-                    </article>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <form className="enter-rise flex flex-col gap-5" onSubmit={submitPrompt}>
-              <Card className="border lab-panel">
-                <CardHeader>
-                  <CardTitle className="font-heading text-2xl tracking-[-0.04em]">Prompt panel</CardTitle>
-                  <CardDescription>Phase 2 saves the chat. Phase 4 will replace placeholders with Gemini.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <FieldGroup>
-                    <Field data-invalid={Boolean(error?.includes("username"))}>
-                      <FieldLabel htmlFor="username">Instagram username</FieldLabel>
-                      <Input
-                        id="username"
-                        placeholder="kyliejenner"
-                        value={username}
-                        aria-invalid={Boolean(error?.includes("username"))}
-                        disabled={submitting}
-                        onChange={(event) => setUsername(event.target.value.replace(/^@+/, ""))}
-                      />
-                      <FieldDescription>Use the handle only. The scraper arrives in Phase 3.</FieldDescription>
-                    </Field>
-
-                    <Field data-invalid={Boolean(error && !error.includes("username"))}>
-                      <FieldLabel htmlFor="prompt">Analysis prompt</FieldLabel>
-                      <Textarea
-                        id="prompt"
-                        className="min-h-36 resize-none"
-                        placeholder="What recurring hook patterns does this creator use?"
-                        value={prompt}
-                        aria-invalid={Boolean(error && !error.includes("username"))}
-                        disabled={submitting}
-                        onChange={(event) => setPrompt(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            event.currentTarget.form?.requestSubmit();
-                          }
-                        }}
-                      />
-                      <FieldDescription>Press Enter to submit. Use Shift+Enter for a new line.</FieldDescription>
-                      <div aria-live="polite">{error ? <FieldError>{error}</FieldError> : null}</div>
-                    </Field>
-                  </FieldGroup>
-                </CardContent>
-              </Card>
-
-              <Button className="h-12" disabled={submitting} type="submit">
-                {submitting ? <LoaderCircleIcon data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <SendIcon data-icon="inline-start" aria-hidden="true" />}
-                {submitting ? "Saving analysis" : "Send prompt"}
-              </Button>
-
-              <div className="flex items-start gap-3 rounded-2xl border bg-secondary/45 p-4 text-sm leading-6 text-muted-foreground">
-                <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
-                This phase intentionally uses a placeholder assistant response. It validates persistence before external
-                scraping and model calls are introduced.
-              </div>
-            </form>
+            <ConversationPanel activeSession={activeSession} />
+            <PromptForm
+              username={username}
+              setUsername={setUsername}
+              prompt={prompt}
+              setPrompt={setPrompt}
+              error={error}
+              submitting={submitting}
+              onSubmit={submitPrompt}
+            />
           </div>
         </section>
       </div>
     </main>
   );
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return dateFormatter.format(date);
 }
