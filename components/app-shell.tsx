@@ -416,7 +416,6 @@ export function AppShell() {
   const [submitting, setSubmitting] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
-  const [pendingRetry, setPendingRetry] = useState<{ username: string; prompt: string } | null>(null);
 
   const loadSession = useCallback(async (sessionId: string) => {
     setError(null);
@@ -491,7 +490,6 @@ export function AppShell() {
     setPrompt("");
     setError(null);
     setLastError(null);
-    setPendingRetry(null);
   }
 
   function handleClearError() {
@@ -520,16 +518,13 @@ export function AppShell() {
         const errMsg = data.error ?? "Unable to save prompt.";
         setError(errMsg);
         setLastError(errMsg);
-        setPendingRetry({ username: cleanUsername, prompt: cleanPrompt });
         return;
       }
 
       if (data.reelsAnalyzed === -1) {
         setLastError("Scraping found 0 Reels. The account may have no Reels or is unavailable.");
-        setPendingRetry({ username: cleanUsername, prompt: cleanPrompt });
       } else if (data.error) {
         setLastError(data.error);
-        setPendingRetry({ username: cleanUsername, prompt: cleanPrompt });
       }
 
       setPrompt("");
@@ -539,7 +534,6 @@ export function AppShell() {
       const errMsg = "Unable to connect to the analyze endpoint.";
       setError(errMsg);
       setLastError(errMsg);
-      setPendingRetry({ username: cleanUsername, prompt: cleanPrompt });
     } finally {
       setSubmitting(false);
       setAnalysisStage("idle");
@@ -566,11 +560,11 @@ export function AppShell() {
   }
 
   const handleRetry = useCallback(() => {
-    if (pendingRetry) {
-      setLastError(null);
-      void runAnalysis(pendingRetry.username, pendingRetry.prompt);
-    }
-  }, [pendingRetry, runAnalysis]);
+    if (!activeSession) return;
+    const userMessage = activeSession.messages.find((m) => m.role === "user");
+    if (!userMessage) return;
+    void runAnalysis(activeSession.username, userMessage.content);
+  }, [activeSession, runAnalysis]);
 
   if (!unlocked) {
     return <PinScreen onUnlocked={handleUnlocked} />;
