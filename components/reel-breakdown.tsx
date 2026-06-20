@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReelAnalysis } from "@/lib/analysis-rubric";
+import type { ReelAnalysis } from "@/shared/analysis/types";
 import { ScoreCard } from "@/components/score-card";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 const EFFORT_COLORS: Record<string, string> = {
   low: "text-green-400 bg-green-400/10 border-green-400/20",

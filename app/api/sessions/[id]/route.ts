@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { isAuthenticated } from "@/lib/auth";
-import { deleteSession, getSession } from "@/lib/sessions";
+import { isAuthenticated } from "@/server/auth";
+import { deleteSession, getSession } from "@/server/sessions";
 
 export const runtime = "nodejs";
 

@@ -1,15 +1,11 @@
-import { uploadReelVideo, analyzeReels } from "@/lib/gemini";
-import { buildSystemInstruction, buildUserPrompt, buildMetadataOnlyPrompt } from "@/lib/analysis-rubric";
-import type { ReelRecord } from "@/lib/sessions";
+import { uploadReelVideo, analyzeReels } from "./gemini";
+import { buildSystemInstruction, buildUserPrompt, buildMetadataOnlyPrompt } from "@/shared/analysis/analysis-rubric";
+import type { ReelRecord } from "@/server/sessions/types";
+import type { AnalysisResult } from "./types";
 
-export type AnalysisResult = {
-  analysis: string;
-  rawGemini: string;
-  uploadedReels: { reelId: string; geminiFileUri: string | null; geminiFileExpiresAt: string | null }[];
-  videoCount: number;
-  totalCount: number;
-  usedMetadataOnly: boolean;
-};
+
+
+
 
 export async function runAnalysis(prompt: string, reels: ReelRecord[]): Promise<AnalysisResult> {
   const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "12", 10);

@@ -2,24 +2,18 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
-import { extractVideoUrl as extractVideoUrlYtDlp } from "@/lib/downloader";
 import { createHash } from "node:crypto";
 
-const IG_BASE = "https://www.instagram.com";
+import { extractVideoUrl as extractVideoUrlYtDlp } from "./downloader";
+import { IG_BASE, MAX_CONCURRENT_REELS, CACHE_TTL_MS } from "./constants";
+import type { ScrapedReel, ReelPageData, ReelCache } from "./types";
+
+
+
+
+
 const SESSION_FILE = join(tmpdir(), "opencode-ig-session.json");
 const REEL_CACHE_FILE = join(tmpdir(), "reels-analyzer", "reel-cache.json");
-const MAX_CONCURRENT_REELS = 3;
-
-export type ScrapedReel = {
-  shortcode: string;
-  url: string;
-  thumbnailUrl: string | null;
-  videoUrl: string | null;
-  caption: string | null;
-  viewCount: number | null;
-  postDate: string | null;
-  durationSec: number | null;
-};
 
 async function getCredentials() {
   const igUser = process.env.INSTAGRAM_USERNAME;
@@ -71,27 +65,7 @@ async function extractVideoUrl(page: import("playwright").Page, reelUrl: string)
   return result.videoUrl;
 }
 
-type ReelPageData = {
-  videoUrl: string | null;
-  caption: string | null;
-  viewCount: number | null;
-  postDate: string | null;
-  durationSec: number | null;
-};
 
-type ReelCacheEntry = {
-  shortcode: string;
-  videoUrl: string | null;
-  caption: string | null;
-  viewCount: number | null;
-  postDate: string | null;
-  durationSec: number | null;
-  cachedAt: number;
-};
-
-type ReelCache = Record<string, ReelCacheEntry>;
-
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function loadReelCache(): ReelCache {
   try {

@@ -6,7 +6,7 @@ import {
   createSessionToken,
   setupPin,
   validatePin,
-} from "@/lib/auth";
+} from "@/server/auth";
 
 export const runtime = "nodejs";
 

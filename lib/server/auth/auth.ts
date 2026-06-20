@@ -2,18 +2,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 
-import { deleteSettings, getSetting, setSetting } from "@/lib/db";
+import { deleteSettings, getSetting, setSetting } from "@/shared/db";
+import { PIN_HASH_KEY, PIN_SET_AT_KEY, AUTH_COOKIE_NAME, SESSION_TTL_SECONDS } from "./constants";
+import type { SessionPayload } from "./types";
 
-const PIN_HASH_KEY = "pin_hash";
-const PIN_SET_AT_KEY = "pin_set_at";
-export const AUTH_COOKIE_NAME = "reels_analyzer_session";
 
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-
-type SessionPayload = {
-  iat: number;
-  exp: number;
-};
 
 export function validatePin(pin: unknown): pin is string {
   return typeof pin === "string" && /^\d{4}$/.test(pin);
@@ -91,14 +84,6 @@ export function verifySessionToken(token: string | undefined) {
     return false;
   }
 }
-
-export const authCookieOptions = {
-  httpOnly: true,
-  maxAge: SESSION_TTL_SECONDS,
-  path: "/",
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-};
 
 async function resetPinIfRequested() {
   if (process.env.RESET_PIN !== "true") {

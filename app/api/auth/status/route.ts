@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { hasPinConfigured, isAuthenticated } from "@/lib/auth";
+import { hasPinConfigured, isAuthenticated } from "@/server/auth";
 
 export const runtime = "nodejs";
 

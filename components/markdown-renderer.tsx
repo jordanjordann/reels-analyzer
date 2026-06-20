@@ -3,7 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 export function MarkdownRenderer({
   content,

@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 
+import type { DownloadResult } from "./types";
+
+
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ffmpegPath = require("ffmpeg-static") as string;
 
@@ -39,11 +43,7 @@ function findYtDlp(): string {
   );
 }
 
-export type DownloadResult = {
-  filePath: string;
-  durationSec: number | null;
-  fileSize: number;
-};
+
 
 export async function downloadVideo(
   url: string,

@@ -1,53 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import { db } from "@/lib/db";
-import type { ScrapedReel } from "@/lib/scraper";
-
-export type MessageRole = "user" | "assistant";
-
-export type SessionListItem = {
-  id: string;
-  username: string;
-  title: string | null;
-  lastPromptPreview: string | null;
-  updatedAt: string;
-};
-
-export type MessageRecord = {
-  id: string;
-  sessionId: string;
-  role: MessageRole;
-  content: string;
-  rawGemini: string | null;
-  createdAt: string;
-};
-
-export type ReelRecord = {
-  id: string;
-  sessionId: string;
-  username: string;
-  igShortcode: string;
-  igUrl: string;
-  thumbnailUrl: string | null;
-  videoUrl: string | null;
-  durationSec: number | null;
-  viewCount: number | null;
-  postDate: string | null;
-  caption: string | null;
-  geminiFileUri: string | null;
-  geminiFileExpiresAt: string | null;
-  createdAt: string;
-};
-
-export type SessionDetail = {
-  id: string;
-  username: string;
-  title: string | null;
-  createdAt: string;
-  updatedAt: string;
-  reels: ReelRecord[];
-  messages: MessageRecord[];
-};
+import { db } from "@/shared/db";
+import type { ScrapedReel } from "@/server/analysis/types";
+import type { MessageRole, SessionDetail, SessionListItem } from "./types";
 
 export async function listSessions(): Promise<SessionListItem[]> {
   const result = await db.execute(`

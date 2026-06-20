@@ -151,7 +151,7 @@ async function main() {
 
   // 5. Database connectivity
   try {
-    const { db } = await import("../lib/db");
+    const { db } = await import("../lib/shared/db");
     const result = await db.execute("SELECT 1 as test");
     if (result.rows.length > 0 && result.rows[0].test === 1) {
       check("Database", "pass", "Connected");

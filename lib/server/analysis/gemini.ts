@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
 import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { downloadVideo, cleanupFile } from "@/lib/downloader";
+import { downloadVideo, cleanupFile } from "./downloader";
+import { MAX_RETRIES, BASE_DELAY_MS } from "./constants";
+import type { GeminiUploadResult, GeminiAnalysisResult } from "./types";
 
-const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 2000;
+
 
 function isRetryableError(error: unknown): boolean {
   if (error instanceof Error) {
@@ -37,16 +37,6 @@ async function withRetry<T>(operation: () => Promise<T>, context: string): Promi
   }
   throw new Error(`${context} failed after ${MAX_RETRIES} retries`);
 }
-
-export type GeminiUploadResult = {
-  fileUri: string;
-  fileExpiresAt: string;
-};
-
-export type GeminiAnalysisResult = {
-  content: string;
-  rawGemini: string;
-};
 
 function getClient() {
   const apiKey = process.env.GEMINI_API_KEY;

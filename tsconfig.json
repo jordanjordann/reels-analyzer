@@ -19,7 +19,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@/api/*": ["./lib/api/*"],
+      "@/server/*": ["./lib/server/*"],
+      "@/shared/*": ["./lib/shared/*"]
     }
   },
   "include": [

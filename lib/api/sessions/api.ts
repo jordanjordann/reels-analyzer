@@ -1,33 +1,4 @@
-type AuthStatus = {
-  pinConfigured: boolean;
-  authenticated: boolean;
-};
-
-type SessionListItem = {
-  id: string;
-  username: string;
-  title: string | null;
-  lastPromptPreview: string | null;
-  updatedAt: string;
-};
-
-type MessageRecord = {
-  id: string;
-  sessionId: string;
-  role: "user" | "assistant";
-  content: string;
-  rawGemini: string | null;
-  createdAt: string;
-};
-
-type SessionDetail = {
-  id: string;
-  username: string;
-  title: string | null;
-  createdAt: string;
-  updatedAt: string;
-  messages: MessageRecord[];
-};
+import type { SessionListItem, SessionDetail } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -38,19 +9,6 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw error;
   }
   return data as T;
-}
-
-export async function getAuthStatus(): Promise<AuthStatus> {
-  return fetchJson<AuthStatus>("/api/auth/status");
-}
-
-export async function submitPin(pin: string, pinConfigured: boolean): Promise<{ ok: boolean }> {
-  const endpoint = pinConfigured ? "/api/auth/verify" : "/api/auth/setup";
-  return fetchJson<{ ok: boolean }>(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pin }),
-  });
 }
 
 export async function getSessions(): Promise<SessionListItem[]> {
@@ -73,4 +31,4 @@ export async function deleteSession(id: string): Promise<void> {
   await fetch(`/api/sessions/${id}`, { method: "DELETE" });
 }
 
-export type { AuthStatus, SessionListItem, MessageRecord, SessionDetail };
+export type { SessionListItem, MessageRecord, SessionDetail } from "./types";

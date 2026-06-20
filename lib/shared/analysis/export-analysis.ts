@@ -1,14 +1,5 @@
-import type { StructuredAnalysis, ReelAnalysis } from "@/lib/analysis-rubric";
-
-const DIMENSION_LABELS: Record<string, string> = {
-  hookStrength: "Hook Strength",
-  retentionFlow: "Retention Flow",
-  visualPolish: "Visual Polish",
-  audioVisualSync: "Audio-Visual Sync",
-  trendAlignment: "Trend Alignment",
-  callToAction: "Call to Action",
-  brandConsistency: "Brand Consistency",
-};
+import type { StructuredAnalysis, ReelAnalysis } from "./types";
+import { DIMENSION_LABELS } from "./constants";
 
 function scoreToEmoji(score: number): string {
   if (score >= 8) return "🟢";

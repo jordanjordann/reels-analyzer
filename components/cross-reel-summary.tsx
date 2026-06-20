@@ -1,6 +1,6 @@
 "use client";
 
-import type { CrossReelAnalysis } from "@/lib/analysis-rubric";
+import type { CrossReelAnalysis } from "@/shared/analysis/types";
 import { SparklesIcon, TrendingUpIcon, LightbulbIcon } from "lucide-react";
 
 export function CrossReelSummary({ summary }: { summary: CrossReelAnalysis }) {

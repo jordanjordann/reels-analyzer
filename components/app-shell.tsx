@@ -39,12 +39,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { AnalysisResults } from "@/components/analysis-results";
-import { parseStructuredAnalysis } from "@/lib/analysis-parser";
-import { exportAnalysisToMarkdown, downloadMarkdown } from "@/lib/export-analysis";
-import { cn } from "@/lib/utils";
-import { useDeleteSession, useSession, useSessions, SESSION_KEYS } from "@/lib/hooks";
+import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
+import { exportAnalysisToMarkdown, downloadMarkdown } from "@/shared/analysis/export-analysis";
+import { cn } from "@/shared/utils";
+import { useDeleteSession, useSession, useSessions, SESSION_KEYS } from "@/api/sessions/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import type { SessionDetail, SessionListItem } from "@/lib/api";
+import type { SessionDetail, SessionListItem } from "@/api/sessions/api";
 
 const dateFormatter = new Intl.DateTimeFormat("en", {
   month: "short",

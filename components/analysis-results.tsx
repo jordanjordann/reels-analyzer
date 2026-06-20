@@ -1,10 +1,10 @@
 "use client";
 
-import type { StructuredAnalysis } from "@/lib/analysis-rubric";
+import type { StructuredAnalysis } from "@/shared/analysis/types";
 import { ReelBreakdown } from "@/components/reel-breakdown";
 import { CrossReelSummary } from "@/components/cross-reel-summary";
 import { TrendingUpIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 function overallScoreColor(score: number): string {
   if (score >= 8) return "text-green-400";

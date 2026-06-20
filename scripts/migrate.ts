@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { db } from "../lib/db";
+import { db } from "../lib/shared/db";
 
 async function main() {
   await db.executeMultiple(`

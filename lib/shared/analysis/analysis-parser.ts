@@ -1,4 +1,4 @@
-import type { StructuredAnalysis } from "@/lib/analysis-rubric";
+import type { StructuredAnalysis } from "./types";
 
 function extractJsonFromText(text: string): string | null {
   let cleaned = text.trim();

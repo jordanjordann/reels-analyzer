@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { isAuthenticated } from "@/lib/auth";
-import { scrapeReels } from "@/lib/scraper";
+import { isAuthenticated } from "@/server/auth";
+import { scrapeReels } from "@/server/analysis/scraper";
 import {
   addMessage,
   createSession,
@@ -12,8 +12,8 @@ import {
   updateSessionTitle,
   validatePrompt,
   validateUsername,
-} from "@/lib/sessions";
-import { runAnalysis } from "@/lib/prompt-router";
+} from "@/server/sessions";
+import { runAnalysis } from "@/server/analysis/prompt-router";
 
 export const runtime = "nodejs";
 

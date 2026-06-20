@@ -1,53 +1,13 @@
 "use client";
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  deleteSession,
-  getAuthStatus,
-  getSession,
-  getSessions,
-  submitPin,
-  type SessionListItem,
-} from "@/lib/api";
+import { deleteSession, getSessions, getSession } from "@/api/sessions/api";
+import type { SessionListItem } from "@/api/sessions/types";
+import { SESSION_KEYS } from "@/api/sessions/constants";
 
-export const SESSION_KEYS = {
-  all: ["sessions"] as const,
-  lists: () => [...SESSION_KEYS.all, "list"] as const,
-  details: () => [...SESSION_KEYS.all, "detail"] as const,
-  detail: (id: string) => [...SESSION_KEYS.details(), id] as const,
-};
-
-export const AUTH_KEYS = {
-  all: ["auth"] as const,
-  status: () => [...AUTH_KEYS.all, "status"] as const,
-};
-
-export function useAuthStatus() {
-  return useQuery({
-    queryKey: AUTH_KEYS.status(),
-    queryFn: getAuthStatus,
-    staleTime: Infinity,
-    gcTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-  });
-}
-
-export function useSubmitPin() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ pin, pinConfigured }: { pin: string; pinConfigured: boolean }) =>
-      submitPin(pin, pinConfigured),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: AUTH_KEYS.status() });
-    },
-  });
-}
+export { SESSION_KEYS } from "@/api/sessions/constants";
+export type { SessionListItem, MessageRecord, SessionDetail } from "@/api/sessions/types";
 
 export function useSessions() {
   return useQuery({

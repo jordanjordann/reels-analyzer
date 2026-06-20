@@ -29,7 +29,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useAuthStatus, useSubmitPin } from "@/lib/hooks";
+import { useAuthStatus, useSubmitPin } from "@/api/auth/hooks";
 
 const capabilities = [
   "PIN-gated workspace",
