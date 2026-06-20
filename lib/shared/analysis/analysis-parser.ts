@@ -34,20 +34,37 @@ function validateStructuredAnalysis(parsed: unknown): StructuredAnalysis | null 
   for (const reel of obj.reels) {
     if (!reel || typeof reel !== "object") return null;
     const r = reel as Record<string, unknown>;
-    if (typeof r.shortcode !== "string" || !r.scores || typeof r.averageScore !== "number") return null;
+    if (typeof r.shortcode !== "string") return null;
 
+    const scorecard = r.scorecard as Record<string, unknown>;
+    if (!scorecard) return null;
     const requiredScores = [
-      "hookStrength",
-      "retentionFlow",
-      "visualPolish",
-      "audioVisualSync",
-      "trendAlignment",
-      "callToAction",
-      "brandConsistency",
+      "performanceScore",
+      "creativeScore",
+      "replicationScore",
+      "viralIntelligenceScore",
+      "viralQualityScore",
     ];
-    const scores = r.scores as Record<string, unknown>;
     for (const key of requiredScores) {
-      if (typeof scores[key] !== "number") return null;
+      if (typeof scorecard[key] !== "number") return null;
+    }
+
+    const qualityBreakdown = r.qualityBreakdown as Record<string, unknown>;
+    if (!qualityBreakdown) return null;
+    const requiredQuality = [
+      "hookStrength",
+      "retentionDesign",
+      "shareability",
+      "audiencePainDesireFit",
+      "ideaSharpness",
+      "executionQuality",
+      "emotionalTrigger",
+      "commentTrigger",
+      "saveValue",
+      "brandTransferability",
+    ];
+    for (const key of requiredQuality) {
+      if (typeof qualityBreakdown[key] !== "number") return null;
     }
   }
 

@@ -1,5 +1,5 @@
 import type { StructuredAnalysis, ReelAnalysis } from "./types";
-import { DIMENSION_LABELS } from "./constants";
+import { DIMENSION_LABELS, RED_FLAGS } from "./constants";
 
 function scoreToEmoji(score: number): string {
   if (score >= 8) return "🟢";
@@ -8,29 +8,53 @@ function scoreToEmoji(score: number): string {
   return "🔴";
 }
 
+function scoreLevel(score: number): string {
+  if (score >= 80) return "exceptional";
+  if (score >= 60) return "strong";
+  if (score >= 40) return "average";
+  return "weak";
+}
+
 function formatReelMarkdown(reel: ReelAnalysis, index: number): string {
   const scores = Object.entries(DIMENSION_LABELS)
-    .map(([key, label]) => `  - ${label}: ${scoreToEmoji(reel.scores[key as keyof typeof reel.scores])} ${reel.scores[key as keyof typeof reel.scores]}/10`)
+    .map(([key, label]) => `  - ${label}: ${scoreToEmoji(reel.qualityBreakdown[key as keyof typeof reel.qualityBreakdown])} ${reel.qualityBreakdown[key as keyof typeof reel.qualityBreakdown]}/10`)
     .join("\n");
+
+  const redFlagNames = reel.redFlags
+    .map((id) => RED_FLAGS.find((r) => r.id === id)?.name)
+    .filter(Boolean)
+    .join(", ") || "None";
 
   return `### Reel ${index + 1}: ${reel.shortcode}
 
-**Concept:** ${reel.concept}
+**Diagnosis:** ${reel.oneLineDiagnosis}
 
-**Average Score:** ${reel.averageScore.toFixed(1)}/10
+**Replication:** ${reel.replicationAnalysis.replicationLabel.replace(/_/g, " ")}
 
-**Scores:**
+**Scorecard:**
+- Viral Intelligence: ${reel.scorecard.viralIntelligenceScore}/100 (${scoreLevel(reel.scorecard.viralIntelligenceScore)})
+- Performance: ${reel.scorecard.performanceScore}/100
+- Creative: ${reel.scorecard.creativeScore}/100
+- Replication: ${reel.scorecard.replicationScore}/100
+
+**Quality Breakdown:**
 ${scores}
 
-**Notable Techniques:** ${reel.notableTechniques.join(", ") || "None identified"}
+**Formula:** ${reel.viralFormulaCard.formulaName}
+**Template Hook:** ${reel.viralFormulaCard.templateHook}
 
-**What Worked:**
-${reel.whatWorked}
+**Audience Psychology:**
+- Pain: ${reel.audiencePsychology.pain}
+- Desire: ${reel.audiencePsychology.desire}
+- Identity: ${reel.audiencePsychology.identity}
 
-**To Improve:**
-${reel.whatToImprove}
+**Can Copy:** ${reel.replicationAnalysis.whatCanBeCopied.join(", ") || "None identified"}
+**Do Not Copy:** ${reel.replicationAnalysis.whatShouldNotBeCopied.join(", ") || "None"}
 
-**Production Effort:** ${reel.productionEffort}
+**Red Flags:** ${redFlagNames}
+
+**Adaptation Ideas:**
+${reel.adaptationIdeas.map((a) => `  - ${a.targetCreatorOrBrand}: ${a.adaptedHook}`).join("\n")}
 `;
 }
 
@@ -38,7 +62,7 @@ export function exportAnalysisToMarkdown(analysis: StructuredAnalysis, username:
   const header = `# Reels Analysis — @${username}
 
 **Generated:** ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-**Overall Score:** ${analysis.overallAverageScore.toFixed(1)}/10
+**Overall Viral Intelligence Score:** ${analysis.overallViralIntelligenceScore}/100 (${scoreLevel(analysis.overallViralIntelligenceScore)})
 **Reels Analyzed:** ${analysis.reels.length}
 ${prompt ? `**Prompt:** ${prompt}` : ""}
 
@@ -46,7 +70,7 @@ ${prompt ? `**Prompt:** ${prompt}` : ""}
 
 ## Overall Score
 
-${scoreToEmoji(analysis.overallAverageScore)} **${analysis.overallAverageScore.toFixed(1)}/10**
+${scoreToEmoji(analysis.overallViralIntelligenceScore / 10)} **${analysis.overallViralIntelligenceScore}/100**
 
 ---
 
@@ -67,9 +91,13 @@ ${analysis.reels.map((reel, i) => formatReelMarkdown(reel, i)).join("\n---\n\n")
 
 ${crossReel.recurringPatterns.map((p) => `- ${p}`).join("\n")}
 
-### Hook Effectiveness Trend
+### Top Performing Formula
 
-${crossReel.hookEffectivenessTrend}
+${crossReel.topPerformingFormula}
+
+### Recommended Focus
+
+${crossReel.recommendedFocus}
 
 ### Improvement Opportunities
 

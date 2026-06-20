@@ -7,22 +7,23 @@ import { TrendingUpIcon } from "lucide-react";
 import { cn } from "@/shared/utils";
 
 function overallScoreColor(score: number): string {
-  if (score >= 8) return "text-green-400";
-  if (score >= 6) return "text-yellow-400";
-  if (score >= 4) return "text-orange-400";
+  if (score >= 80) return "text-green-400";
+  if (score >= 60) return "text-yellow-400";
+  if (score >= 40) return "text-orange-400";
   return "text-red-400";
 }
 
 function overallScoreRing(score: number): string {
-  if (score >= 8) return "stroke-green-400";
-  if (score >= 6) return "stroke-yellow-400";
-  if (score >= 4) return "stroke-orange-400";
+  if (score >= 80) return "stroke-green-400";
+  if (score >= 60) return "stroke-yellow-400";
+  if (score >= 40) return "stroke-orange-400";
   return "stroke-red-400";
 }
 
 export function AnalysisResults({ analysis }: { analysis: StructuredAnalysis }) {
   const circumference = 2 * Math.PI * 36;
-  const strokeDashoffset = circumference - (analysis.overallAverageScore / 10) * circumference;
+  const score = analysis.overallViralIntelligenceScore;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
     <div className="flex flex-col gap-5">
@@ -46,14 +47,14 @@ export function AnalysisResults({ analysis }: { analysis: StructuredAnalysis }) 
               fill="none"
               strokeWidth="6"
               strokeLinecap="round"
-              className={cn("transition-all duration-700", overallScoreRing(analysis.overallAverageScore))}
+              className={cn("transition-all duration-700", overallScoreRing(score))}
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className={cn("text-xl font-mono font-bold", overallScoreColor(analysis.overallAverageScore))}>
-              {analysis.overallAverageScore.toFixed(1)}
+            <span className={cn("text-xl font-mono font-bold", overallScoreColor(score))}>
+              {score}
             </span>
           </div>
         </div>

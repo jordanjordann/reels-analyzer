@@ -28,9 +28,16 @@ export function CrossReelSummary({ summary }: { summary: CrossReelAnalysis }) {
 
       <div className="mb-4">
         <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">
-          Hook Effectiveness Trend
+          Top Performing Formula
         </p>
-        <p className="text-sm text-muted-foreground">{summary.hookEffectivenessTrend}</p>
+        <p className="text-sm text-muted-foreground">{summary.topPerformingFormula}</p>
+      </div>
+
+      <div className="mb-4">
+        <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">
+          Recommended Focus
+        </p>
+        <p className="text-sm text-accent">{summary.recommendedFocus}</p>
       </div>
 
       {summary.improvementOpportunities.length > 0 && (

@@ -105,17 +105,18 @@ export async function POST(request: Request) {
     }
 
     const sessionId = session.id;
-    const initialReelCount = session.reels.length;
 
     await addMessage(sessionId, "user", prompt);
     if (!session.title) {
       await updateSessionTitle(sessionId, prompt.slice(0, 80));
     }
 
-    let reelsAnalyzed = initialReelCount;
+    // Always store newly fetched reels (deduped by shortcode)
+    const existingShortcodes = new Set(session.reels.map((r) => r.igShortcode));
+    const newReels = success.filter((r) => !existingShortcodes.has(r.shortcode));
 
-    if (reelsAnalyzed === 0) {
-      const reelsToStore: ScrapedReel[] = success.map((r) => ({
+    if (newReels.length > 0) {
+      const reelsToStore: ScrapedReel[] = newReels.map((r) => ({
         shortcode: r.shortcode,
         url: r.url,
         thumbnailUrl: r.thumbnailUrl,
@@ -127,18 +128,6 @@ export async function POST(request: Request) {
       }));
 
       await storeReels(sessionId, username, reelsToStore);
-      reelsAnalyzed = reelsToStore.length;
-
-      if (reelsAnalyzed === 0) {
-        const msg = `Found 0 usable reels from ${urls.length} URLs.`;
-        await addMessage(sessionId, "assistant", msg);
-        return NextResponse.json({
-          sessionId,
-          username,
-          reelsAnalyzed: 0,
-          failedReels: failed,
-        });
-      }
 
       const loaded = await getSession(sessionId);
       if (!loaded) {
@@ -147,9 +136,27 @@ export async function POST(request: Request) {
       session = loaded;
     }
 
+    // Analyze ONLY the newly submitted reels, not all stored reels
+    const reelsToAnalyze = session.reels.filter((r) =>
+      success.some((s) => s.shortcode === r.igShortcode)
+    );
+
+    if (reelsToAnalyze.length === 0) {
+      const msg = `Found 0 usable reels from ${urls.length} URLs.`;
+      await addMessage(sessionId, "assistant", msg);
+      return NextResponse.json({
+        sessionId,
+        username,
+        reelsAnalyzed: 0,
+        failedReels: failed,
+      });
+    }
+
+    const reelsAnalyzed = reelsToAnalyze.length;
+
     // Budget check — only on first run (not when user confirms)
     if (!confirmBudget) {
-      const totalDurationSec = session.reels.reduce(
+      const totalDurationSec = reelsToAnalyze.reduce(
         (sum, r) => sum + (r.durationSec ?? 0),
         0,
       );
@@ -171,7 +178,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const result = await runAnalysis(prompt, session.reels);
+    const result = await runAnalysis(prompt, reelsToAnalyze);
 
     for (const uploaded of result.uploadedReels) {
       await updateReelGeminiFile(uploaded.reelId, uploaded.geminiFileUri, uploaded.geminiFileExpiresAt);
