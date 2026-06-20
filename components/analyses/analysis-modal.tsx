@@ -50,14 +50,7 @@ export function AnalysisModal({
   }, [handleClose]);
 
   const reel = data?.reel ?? null;
-  const fullStructured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
-  const structured = fullStructured
-    ? {
-        reels: fullStructured.reels.filter((r) => r.shortcode === shortcode),
-        crossReel: fullStructured.crossReel,
-        overallViralIntelligenceScore: fullStructured.overallViralIntelligenceScore,
-      }
-    : null;
+  const structured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
   const title = reel?.caption?.trim() || `Reel ${shortcode}`;
   const views = formatViews(reel?.viewCount ?? null);
   const date = formatDate(reel?.postDate ?? null);

@@ -109,6 +109,34 @@ async function getReelDetail(shortcode: string) {
 
   const message = messagesResult.rows[0];
 
+  // Extract only the matching reel's analysis from the full session JSON
+  let reelAnalysis: string | null = null;
+  if (typeof message?.content === "string") {
+    try {
+      const cleaned = message.content
+        .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
+        .trim();
+      const firstBrace = cleaned.indexOf("{");
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonStr = cleaned.substring(firstBrace, lastBrace + 1);
+        const parsed = JSON.parse(jsonStr) as { reels?: Array<{ shortcode?: string }>; crossReel?: unknown; overallViralIntelligenceScore?: number };
+        const matchingReel = parsed.reels?.find(
+          (r) => r.shortcode?.toLowerCase() === shortcode.toLowerCase(),
+        );
+        if (matchingReel) {
+          reelAnalysis = JSON.stringify({
+            reels: [matchingReel],
+            crossReel: parsed.crossReel,
+            overallViralIntelligenceScore: parsed.overallViralIntelligenceScore,
+          });
+        }
+      }
+    } catch {
+      reelAnalysis = message.content;
+    }
+  }
+
   return {
     id: String(reel.id),
     sessionId,
@@ -120,8 +148,8 @@ async function getReelDetail(shortcode: string) {
     postDate: typeof reel.post_date === "string" ? reel.post_date : null,
     caption: typeof reel.caption === "string" ? reel.caption : null,
     createdAt: String(reel.created_at),
-    hasAnalysis: !!message,
-    analysis: typeof message?.content === "string" ? message.content : null,
+    hasAnalysis: !!reelAnalysis,
+    analysis: reelAnalysis,
     userPrompt: typeof message?.user_prompt === "string" ? message.user_prompt : null,
   };
 }
