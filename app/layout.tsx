@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fira_Code, Fira_Sans } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { SidebarLayout } from "@/components/sidebar-layout";
 import "./globals.css";
 
 const firaSans = Fira_Sans({
@@ -33,7 +34,9 @@ export default function RootLayout({
       className={`${firaSans.variable} ${firaCode.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-dvh flex-col">
-        <Providers>{children}</Providers>
+        <Providers>
+          <SidebarLayout>{children}</SidebarLayout>
+        </Providers>
       </body>
     </html>
   );
