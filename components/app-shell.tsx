@@ -498,33 +498,9 @@ export function AppShell() {
     setLastError(null);
   }
 
-  function handleRetry() {
-    if (pendingRetry) {
-      setUsername(pendingRetry.username);
-      setPrompt(pendingRetry.prompt);
-      setLastError(null);
-      setPendingRetry(null);
-    }
-  }
-
-  async function submitPrompt(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const runAnalysis = useCallback(async (cleanUsername: string, cleanPrompt: string) => {
     setError(null);
     setLastError(null);
-
-    const cleanUsername = username.trim().replace(/^@+/, "");
-    const cleanPrompt = prompt.trim();
-
-    if (!cleanUsername) {
-      setError("Enter an Instagram username before sending a prompt.");
-      return;
-    }
-
-    if (!cleanPrompt) {
-      setError("Enter a prompt to analyze.");
-      return;
-    }
-
     setSubmitting(true);
     setAnalysisStage("scraping");
 
@@ -568,7 +544,33 @@ export function AppShell() {
       setSubmitting(false);
       setAnalysisStage("idle");
     }
+  }, [activeSession, loadSession, loadSessions]);
+
+  async function submitPrompt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const cleanUsername = username.trim().replace(/^@+/, "");
+    const cleanPrompt = prompt.trim();
+
+    if (!cleanUsername) {
+      setError("Enter an Instagram username before sending a prompt.");
+      return;
+    }
+
+    if (!cleanPrompt) {
+      setError("Enter a prompt to analyze.");
+      return;
+    }
+
+    void runAnalysis(cleanUsername, cleanPrompt);
   }
+
+  const handleRetry = useCallback(() => {
+    if (pendingRetry) {
+      setLastError(null);
+      void runAnalysis(pendingRetry.username, pendingRetry.prompt);
+    }
+  }, [pendingRetry, runAnalysis]);
 
   if (!unlocked) {
     return <PinScreen onUnlocked={handleUnlocked} />;
