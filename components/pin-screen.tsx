@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useTransition } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   ActivityIcon,
   BadgeCheckIcon,
@@ -29,6 +29,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useAuthStatus, useSubmitPin } from "@/lib/hooks";
 
 const capabilities = [
   "PIN-gated workspace",
@@ -36,57 +37,24 @@ const capabilities = [
   "Video-native Gemini analysis",
 ];
 
-type AuthStatus = {
-  pinConfigured: boolean;
-  authenticated: boolean;
-};
-
 type PinScreenProps = {
   onUnlocked: () => void;
 };
 
 export function PinScreen({ onUnlocked }: PinScreenProps) {
-  const [status, setStatus] = useState<AuthStatus | null>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+
+  const authStatus = useAuthStatus();
+  const submitPinMutation = useSubmitPin();
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadStatus() {
-      try {
-        const response = await fetch("/api/auth/status");
-        const data = (await response.json()) as AuthStatus & { error?: string };
-
-        if (cancelled) {
-          return;
-        }
-
-        if (!response.ok) {
-          setError(data.error ?? "Unable to read auth status.");
-          return;
-        }
-
-        setStatus(data);
-        if (data.authenticated) {
-          onUnlocked();
-        }
-      } catch {
-        if (!cancelled) {
-          setError("Unable to connect to the auth endpoint.");
-        }
-      }
+    if (authStatus.data?.authenticated) {
+      onUnlocked();
     }
+  }, [authStatus.data?.authenticated, onUnlocked]);
 
-    loadStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [onUnlocked]);
-
-  function submitPin(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
@@ -96,32 +64,20 @@ export function PinScreen({ onUnlocked }: PinScreenProps) {
       return;
     }
 
-    startTransition(async () => {
-      const endpoint = status?.pinConfigured ? "/api/auth/verify" : "/api/auth/setup";
-
-      try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin }),
-        });
-        const data = (await response.json()) as { ok: boolean; error?: string };
-
-        if (!response.ok || !data.ok) {
-          setError(data.error ?? "PIN failed.");
+    submitPinMutation.mutate(
+      { pin, pinConfigured: authStatus.data?.pinConfigured ?? false },
+      {
+        onSuccess: () => onUnlocked(),
+        onError: (err) => {
+          setError(err.message ?? "PIN failed.");
           setPin("");
-          return;
-        }
-
-        onUnlocked();
-      } catch {
-        setError("Unable to submit PIN.");
-        setPin("");
-      }
-    });
+        },
+      },
+    );
   }
 
-  const mode = status?.pinConfigured ? "unlock" : "setup";
+  const isPending = submitPinMutation.isPending;
+  const mode = authStatus.data?.pinConfigured ? "unlock" : "setup";
   const title = mode === "setup" ? "Initialize private analysis vault" : "Unlock analysis vault";
   const description =
     mode === "setup"
@@ -139,7 +95,7 @@ export function PinScreen({ onUnlocked }: PinScreenProps) {
                 <LockKeyholeIcon className="size-5" aria-hidden="true" />
               </div>
               <div className="rounded-full border bg-secondary px-3 py-1 font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {status ? "Secure route ready" : "Syncing status"}
+                {authStatus.isSuccess ? "Secure route ready" : "Syncing status"}
               </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -147,7 +103,7 @@ export function PinScreen({ onUnlocked }: PinScreenProps) {
               <CardDescription className="text-base leading-7">{description}</CardDescription>
             </div>
           </CardHeader>
-          <form onSubmit={submitPin}>
+          <form onSubmit={handleSubmit}>
             <CardContent className="flex flex-col gap-6">
               <FieldGroup>
                 <Field data-invalid={Boolean(error)}>
@@ -162,7 +118,7 @@ export function PinScreen({ onUnlocked }: PinScreenProps) {
                     type="password"
                     value={pin}
                     aria-invalid={Boolean(error)}
-                    disabled={!status || isPending}
+                    disabled={!authStatus.data || isPending}
                     onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
                   />
                   <FieldDescription>
@@ -188,7 +144,7 @@ export function PinScreen({ onUnlocked }: PinScreenProps) {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-              <Button className="h-12 w-full" disabled={!status || isPending || pin.length !== 4} type="submit">
+              <Button className="h-12 w-full" disabled={!authStatus.data || isPending || pin.length !== 4} type="submit">
                 {isPending ? <LoaderCircleIcon data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : null}
                 {isPending ? "Verifying secure session" : mode === "setup" ? "Create vault PIN" : "Unlock workspace"}
               </Button>

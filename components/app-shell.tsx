@@ -42,32 +42,9 @@ import { AnalysisResults } from "@/components/analysis-results";
 import { parseStructuredAnalysis } from "@/lib/analysis-parser";
 import { exportAnalysisToMarkdown, downloadMarkdown } from "@/lib/export-analysis";
 import { cn } from "@/lib/utils";
-
-type SessionListItem = {
-  id: string;
-  username: string;
-  title: string | null;
-  lastPromptPreview: string | null;
-  updatedAt: string;
-};
-
-type MessageRecord = {
-  id: string;
-  sessionId: string;
-  role: "user" | "assistant";
-  content: string;
-  rawGemini: string | null;
-  createdAt: string;
-};
-
-type SessionDetail = {
-  id: string;
-  username: string;
-  title: string | null;
-  createdAt: string;
-  updatedAt: string;
-  messages: MessageRecord[];
-};
+import { useDeleteSession, useSession, useSessions, SESSION_KEYS } from "@/lib/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import type { SessionDetail, SessionListItem } from "@/lib/api";
 
 const dateFormatter = new Intl.DateTimeFormat("en", {
   month: "short",
@@ -94,8 +71,8 @@ const SessionRail = function SessionRail({
   activeSession: SessionDetail | null;
   loadingSessions: boolean;
   loadingSessionId: string | null;
-  loadSession: (id: string) => Promise<SessionDetail | null>;
-  deleteSession: (id: string) => Promise<void>;
+  loadSession: (id: string) => void;
+  deleteSession: (id: string) => void;
 }) {
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -406,86 +383,43 @@ const PromptForm = function PromptForm({
 
 export function AppShell() {
   const [unlocked, setUnlocked] = useState(false);
-  const [sessions, setSessions] = useState<SessionListItem[]>([]);
-  const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loadingSessions, setLoadingSessions] = useState(false);
-  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const loadSession = useCallback(async (sessionId: string) => {
+  const sessionsQuery = useSessions();
+  const sessionQuery = useSession(activeSessionId);
+  const deleteMutation = useDeleteSession();
+  const queryClient = useQueryClient();
+
+  const activeSession = sessionQuery.data ?? null;
+  const loadingSessionId = sessionQuery.isFetching ? activeSessionId : null;
+
+  function loadSession(id: string) {
     setError(null);
-    setLoadingSessionId(sessionId);
+    setActiveSessionId(id);
+  }
 
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}`);
-      const data = (await response.json()) as { session?: SessionDetail; error?: string };
+  function handleDeleteSession(id: string) {
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        if (activeSessionId === id) {
+          setActiveSessionId(null);
+        }
+      },
+    });
+  }
 
-      if (!response.ok || !data.session) {
-        setError(data.error ?? "Unable to load session.");
-        return null;
-      }
-
-      setActiveSession(data.session);
-      setUsername(data.session.username);
-      return data.session;
-    } catch {
-      setError("Unable to connect to the sessions endpoint.");
-      return null;
-    } finally {
-      setLoadingSessionId(null);
-    }
-  }, []);
-
-  const loadSessions = useCallback(async () => {
-    setLoadingSessions(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/sessions");
-      const data = (await response.json()) as { sessions?: SessionListItem[]; error?: string };
-
-      if (!response.ok || !data.sessions) {
-        setError(data.error ?? "Unable to load sessions.");
-        return;
-      }
-
-      setSessions(data.sessions);
-      if (!activeSession && data.sessions[0]) {
-        await loadSession(data.sessions[0].id);
-      }
-    } catch {
-      setError("Unable to connect to the sessions endpoint.");
-    } finally {
-      setLoadingSessions(false);
-    }
-  }, [activeSession, loadSession]);
-
-  const handleDeleteSession = useCallback(async (sessionId: string) => {
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
-      if (!response.ok) return;
-
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-      if (activeSession?.id === sessionId) {
-        setActiveSession(null);
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [activeSession]);
-
-  const handleUnlocked = useCallback(() => {
+  function handleUnlocked() {
     setUnlocked(true);
-    void loadSessions();
-  }, [loadSessions]);
+  }
 
   function startNewSession() {
-    setActiveSession(null);
+    setActiveSessionId(null);
     setUsername("");
     setPrompt("");
     setError(null);
@@ -528,8 +462,9 @@ export function AppShell() {
       }
 
       setPrompt("");
-      await loadSession(data.sessionId);
-      await loadSessions();
+      void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.lists() });
+      void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.detail(data.sessionId) });
+      setActiveSessionId(data.sessionId);
     } catch {
       const errMsg = "Unable to connect to the analyze endpoint.";
       setError(errMsg);
@@ -538,7 +473,7 @@ export function AppShell() {
       setSubmitting(false);
       setAnalysisStage("idle");
     }
-  }, [activeSession, loadSession, loadSessions]);
+  }, [activeSession, queryClient]);
 
   async function submitPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -593,9 +528,9 @@ export function AppShell() {
             </div>
 
             <SessionRail
-              sessions={sessions}
+              sessions={sessionsQuery.data ?? []}
               activeSession={activeSession}
-              loadingSessions={loadingSessions}
+              loadingSessions={sessionsQuery.isFetching}
               loadingSessionId={loadingSessionId}
               loadSession={loadSession}
               deleteSession={handleDeleteSession}
