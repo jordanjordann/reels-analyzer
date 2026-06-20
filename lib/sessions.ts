@@ -232,3 +232,11 @@ export async function updateReelGeminiFile(
     args: [geminiFileUri, geminiFileExpiresAt, reelId],
   });
 }
+
+export async function deleteSession(id: string): Promise<boolean> {
+  const result = await db.execute({
+    sql: "DELETE FROM sessions WHERE id = ?",
+    args: [id],
+  });
+  return result.rowsAffected > 0;
+}

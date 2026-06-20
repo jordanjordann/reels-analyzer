@@ -1,10 +1,74 @@
 import type { ReelRecord } from "@/lib/sessions";
 
+export type DimensionScores = {
+  hookStrength: number;
+  retentionFlow: number;
+  visualPolish: number;
+  audioVisualSync: number;
+  trendAlignment: number;
+  callToAction: number;
+  brandConsistency: number;
+};
+
+export type ReelAnalysis = {
+  shortcode: string;
+  scores: DimensionScores;
+  averageScore: number;
+  concept: string;
+  notableTechniques: string[];
+  whatWorked: string;
+  whatToImprove: string;
+  productionEffort: "low" | "medium" | "high";
+};
+
+export type CrossReelAnalysis = {
+  recurringPatterns: string[];
+  hookEffectivenessTrend: string;
+  improvementOpportunities: string[];
+  productionEfforts: Record<string, "low" | "medium" | "high">;
+};
+
+export type StructuredAnalysis = {
+  reels: ReelAnalysis[];
+  crossReel: CrossReelAnalysis;
+  overallAverageScore: number;
+};
+
 export function buildSystemInstruction(): string {
   return `You are a social media video analyst. You analyze Instagram Reels and provide structured, actionable insights.
 
-For each Reel, identify and score the following dimensions on a scale of 1-10:
+You MUST return your analysis as a JSON object with this exact structure:
+{
+  "reels": [
+    {
+      "shortcode": "the reel shortcode from metadata",
+      "scores": {
+        "hookStrength": 1-10,
+        "retentionFlow": 1-10,
+        "visualPolish": 1-10,
+        "audioVisualSync": 1-10,
+        "trendAlignment": 1-10,
+        "callToAction": 1-10,
+        "brandConsistency": 1-10
+      },
+      "averageScore": number (average of all 7 scores, rounded to 1 decimal),
+      "concept": "1-2 sentence summary of the reel's concept",
+      "notableTechniques": ["technique1", "technique2", ...],
+      "whatWorked": "what worked well",
+      "whatToImprove": "what could be improved",
+      "productionEffort": "low" | "medium" | "high"
+    }
+  ],
+  "crossReel": {
+    "recurringPatterns": ["pattern1", "pattern2", "pattern3"],
+    "hookEffectivenessTrend": "description of overall hook effectiveness",
+    "improvementOpportunities": ["opportunity1", "opportunity2", ...],
+    "productionEfforts": {"shortcode": "low"|"medium"|"high", ...}
+  },
+  "overallAverageScore": number (average across all reels, rounded to 1 decimal)
+}
 
+Scoring dimensions:
 1. Hook Strength — How quickly and effectively does the first 3 seconds grab attention?
 2. Retention Flow — How well does the video maintain interest throughout?
 3. Visual Polish — Quality of editing, transitions, text overlays, lighting, and production value.
@@ -13,20 +77,7 @@ For each Reel, identify and score the following dimensions on a scale of 1-10:
 6. Call to Action — How clear and compelling is the CTA (follow, like, comment, save, share).
 7. Brand Consistency — How consistently does this reflect the creator's niche, voice, and visual identity.
 
-Then provide:
-- A 1-2 sentence summary of the reel's concept.
-- Notable techniques used (e.g., "hook at 0s", "text overlay", "jump cut", "trending audio", "question CTA").
-- What worked well and what could be improved.
-
-After analyzing individual Reels, produce a Cross-Reel Analysis:
-- Top 3 recurring patterns across the batch.
-- Overall hook effectiveness trend.
-- Suggested improvement opportunities.
-- Estimated production effort (low/medium/high) for each reel.
-
-Please use more structured headings in the response to provide better separation between sections. Starting from Heading 2, Heading 3, and Heading 4
-
-Be specific and actionable. Reference timestamps when possible.`;
+Return ONLY the JSON object. Do not include markdown code fences, explanations, or any text outside the JSON.`;
 }
 
 function formatReelMetadata(reel: ReelRecord): string {
