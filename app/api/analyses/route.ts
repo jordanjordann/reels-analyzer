@@ -43,7 +43,7 @@ async function getUserReels(username: string) {
       FROM reels r
       LEFT JOIN messages m ON m.session_id = r.session_id
         AND m.role = 'assistant'
-        AND m.content LIKE '%{"reels":%'
+        AND m.content LIKE '%"reels"%'
       WHERE r.username = ?
       ORDER BY r.created_at DESC
     `,
@@ -98,7 +98,7 @@ async function getReelDetail(shortcode: string) {
       SELECT m.content,
              (SELECT m2.content FROM messages m2 WHERE m2.session_id = ? AND m2.role = 'user' ORDER BY m2.created_at ASC LIMIT 1) AS user_prompt
       FROM messages m
-      WHERE m.session_id = ? AND m.role = 'assistant' AND m.content LIKE '%{"reels":%'
+      WHERE m.session_id = ? AND m.role = 'assistant' AND m.content LIKE '%"reels"%'
       ORDER BY m.created_at DESC
       LIMIT 1
     `,
