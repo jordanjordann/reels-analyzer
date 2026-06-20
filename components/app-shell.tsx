@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { PinScreen } from "@/components/pin-screen";
+import { UrlChipInput } from "@/components/url-chip-input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,7 +36,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { AnalysisResults } from "@/components/analysis-results";
@@ -144,11 +144,11 @@ const SessionRail = function SessionRail({
   );
 };
 
-type AnalysisStage = "idle" | "scraping" | "uploading" | "analyzing";
+type AnalysisStage = "idle" | "fetching" | "uploading" | "analyzing";
 
 const STAGE_LABELS: Record<AnalysisStage, string> = {
   idle: "",
-  scraping: "Scraping Reels from Instagram...",
+  fetching: "Fetching reel metadata...",
   uploading: "Uploading videos to Gemini...",
   analyzing: "Running analysis against rubric...",
 };
@@ -283,7 +283,7 @@ const ConversationPanel = function ConversationPanel({
                 <div>
                   <h3 className="font-heading text-xl font-semibold tracking-[-0.04em]">Ready for analysis</h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Enter an Instagram username and prompt. Reels will be scraped and analyzed by Gemini 2.5 Flash.
+                    Paste reel URLs and a prompt. Reels will be fetched and analyzed by Gemini 2.5 Flash.
                   </p>
                 </div>
               </div>
@@ -297,8 +297,8 @@ const ConversationPanel = function ConversationPanel({
 };
 
 const PromptForm = function PromptForm({
-  username,
-  setUsername,
+  urls,
+  setUrls,
   prompt,
   setPrompt,
   error,
@@ -306,8 +306,8 @@ const PromptForm = function PromptForm({
   analysisStage,
   onSubmit,
 }: {
-  username: string;
-  setUsername: (v: string) => void;
+  urls: string[];
+  setUrls: (v: string[]) => void;
   prompt: string;
   setPrompt: (v: string) => void;
   error: string | null;
@@ -327,31 +327,24 @@ const PromptForm = function PromptForm({
       <Card className="border lab-panel">
         <CardHeader>
           <CardTitle className="font-heading text-2xl tracking-[-0.04em]">Prompt panel</CardTitle>
-          <CardDescription>Reels are scraped and analyzed by Gemini 2.5 Flash with a structured rubric.</CardDescription>
+          <CardDescription>Paste up to 10 reel URLs. The account is detected automatically.</CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
-            <Field data-invalid={Boolean(error?.includes("username"))}>
-              <FieldLabel htmlFor="username">Instagram username</FieldLabel>
-              <Input
-                id="username"
-                placeholder="kyliejenner"
-                value={username}
-                aria-invalid={Boolean(error?.includes("username"))}
-                disabled={isWorking}
-                onChange={(event) => setUsername(event.target.value.replace(/^@+/, ""))}
-              />
-              <FieldDescription>Use the handle only. The scraper arrives in Phase 3.</FieldDescription>
+            <Field data-invalid={Boolean(error?.includes("URL"))}>
+              <FieldLabel>Reel URLs</FieldLabel>
+              <UrlChipInput urls={urls} onChange={setUrls} max={10} disabled={isWorking} />
+              <FieldDescription>Press Enter to add. Paste multiple URLs to split automatically.</FieldDescription>
             </Field>
 
-            <Field data-invalid={Boolean(error && !error.includes("username"))}>
+            <Field data-invalid={Boolean(error && !error.includes("URL"))}>
               <FieldLabel htmlFor="prompt">Analysis prompt</FieldLabel>
               <Textarea
                 id="prompt"
                 className="min-h-36 resize-none"
                 placeholder="What recurring hook patterns does this creator use?"
                 value={prompt}
-                aria-invalid={Boolean(error && !error.includes("username"))}
+                aria-invalid={Boolean(error && !error.includes("URL"))}
                 disabled={isWorking}
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={(event) => {
@@ -368,7 +361,7 @@ const PromptForm = function PromptForm({
         </CardContent>
       </Card>
 
-      <Button className="h-12" disabled={isWorking} type="submit">
+      <Button className="h-12" disabled={isWorking || urls.length === 0} type="submit">
         {isWorking ? <LoaderCircleIcon data-icon="inline-start" className="animate-spin" aria-hidden="true" /> : <SendIcon data-icon="inline-start" aria-hidden="true" />}
         {buttonLabel}
       </Button>
@@ -384,7 +377,7 @@ const PromptForm = function PromptForm({
 export function AppShell() {
   const [unlocked, setUnlocked] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [username, setUsername] = useState("");
+  const [urls, setUrls] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -420,7 +413,7 @@ export function AppShell() {
 
   function startNewSession() {
     setActiveSessionId(null);
-    setUsername("");
+    setUrls([]);
     setPrompt("");
     setError(null);
     setLastError(null);
@@ -430,23 +423,23 @@ export function AppShell() {
     setLastError(null);
   }
 
-  const runAnalysis = useCallback(async (cleanUsername: string, cleanPrompt: string) => {
+  const runAnalysis = useCallback(async (cleanUrls: string[], cleanPrompt: string) => {
     setError(null);
     setLastError(null);
     setSubmitting(true);
-    setAnalysisStage("scraping");
+    setAnalysisStage("fetching");
 
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: cleanUsername,
+          urls: cleanUrls,
           prompt: cleanPrompt,
-          sessionId: activeSession?.username === cleanUsername.toLowerCase() ? activeSession.id : undefined,
+          sessionId: activeSession?.id ?? undefined,
         }),
       });
-      const data = (await response.json()) as { sessionId?: string; error?: string; reelsAnalyzed?: number };
+      const data = (await response.json()) as { sessionId?: string; error?: string; reelsAnalyzed?: number; username?: string };
 
       if (!response.ok || !data.sessionId) {
         const errMsg = data.error ?? "Unable to save prompt.";
@@ -455,8 +448,8 @@ export function AppShell() {
         return;
       }
 
-      if (data.reelsAnalyzed === -1) {
-        setLastError("Scraping found 0 Reels. The account may have no Reels or is unavailable.");
+      if (data.reelsAnalyzed === 0) {
+        setLastError("Found 0 usable reels. URLs may be invalid or reels are unavailable.");
       } else if (data.error) {
         setLastError(data.error);
       }
@@ -478,11 +471,11 @@ export function AppShell() {
   async function submitPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const cleanUsername = username.trim().replace(/^@+/, "");
+    const cleanUrls = urls.filter((u) => u.trim());
     const cleanPrompt = prompt.trim();
 
-    if (!cleanUsername) {
-      setError("Enter an Instagram username before sending a prompt.");
+    if (cleanUrls.length === 0) {
+      setError("Add at least one Instagram reel URL before sending a prompt.");
       return;
     }
 
@@ -491,15 +484,16 @@ export function AppShell() {
       return;
     }
 
-    void runAnalysis(cleanUsername, cleanPrompt);
+    void runAnalysis(cleanUrls, cleanPrompt);
   }
 
   const handleRetry = useCallback(() => {
     if (!activeSession) return;
     const userMessage = activeSession.messages.find((m) => m.role === "user");
     if (!userMessage) return;
-    void runAnalysis(activeSession.username, userMessage.content);
-  }, [activeSession, runAnalysis]);
+    const retryUrls = urls.length > 0 ? urls : activeSession.reels.map((r) => r.igUrl).filter(Boolean);
+    void runAnalysis(retryUrls, userMessage.content);
+  }, [activeSession, runAnalysis, urls]);
 
   if (!unlocked) {
     return <PinScreen onUnlocked={handleUnlocked} />;
@@ -584,8 +578,8 @@ export function AppShell() {
               onClearError={handleClearError}
             />
             <PromptForm
-              username={username}
-              setUsername={setUsername}
+              urls={urls}
+              setUrls={setUrls}
               prompt={prompt}
               setPrompt={setPrompt}
               error={error}

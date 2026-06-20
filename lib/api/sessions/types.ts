@@ -15,11 +15,29 @@ export type MessageRecord = {
   createdAt: string;
 };
 
+export type ReelRecord = {
+  id: string;
+  sessionId: string;
+  username: string;
+  igShortcode: string;
+  igUrl: string;
+  thumbnailUrl: string | null;
+  videoUrl: string | null;
+  durationSec: number | null;
+  viewCount: number | null;
+  postDate: string | null;
+  caption: string | null;
+  geminiFileUri: string | null;
+  geminiFileExpiresAt: string | null;
+  createdAt: string;
+};
+
 export type SessionDetail = {
   id: string;
   username: string;
   title: string | null;
   createdAt: string;
   updatedAt: string;
+  reels: ReelRecord[];
   messages: MessageRecord[];
 };

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { isAuthenticated } from "@/server/auth";
-import { scrapeReels } from "@/server/analysis/scraper";
+import { initBrowser, loadOrCreateContext, closeBrowser } from "@/server/analysis/ig-session";
+import { fetchAllReels } from "@/server/analysis/reel-fetcher";
 import {
   addMessage,
   createSession,
@@ -11,11 +12,19 @@ import {
   updateReelGeminiFile,
   updateSessionTitle,
   validatePrompt,
-  validateUsername,
 } from "@/server/sessions";
+import type { ScrapedReel } from "@/server/analysis/types";
 import { runAnalysis } from "@/server/analysis/prompt-router";
 
 export const runtime = "nodejs";
+
+const REEL_URL_REGEX = /^https?:\/\/(www\.)?instagram\.com\/reel\/[\w-]+/i;
+
+function validateUrls(urls: unknown): urls is string[] {
+  if (!Array.isArray(urls) || urls.length > 10) return false;
+  if (urls.length === 0) return true;
+  return urls.every((u) => typeof u === "string" && REEL_URL_REGEX.test(u));
+}
 
 export async function POST(request: Request) {
   if (!(await isAuthenticated())) {
@@ -23,77 +32,117 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as {
-    username?: unknown;
+    urls?: unknown;
     prompt?: unknown;
     sessionId?: unknown;
   } | null;
 
-  if (!validateUsername(body?.username)) {
-    return NextResponse.json({ error: "Enter a valid Instagram username." }, { status: 400 });
+  if (!validateUrls(body?.urls)) {
+    return NextResponse.json(
+      { error: "Provide 1-10 valid Instagram reel URLs." },
+      { status: 400 }
+    );
   }
 
   if (!validatePrompt(body?.prompt)) {
     return NextResponse.json({ error: "Enter a prompt under 4,000 characters." }, { status: 400 });
   }
 
-  const username = normalizeUsername(body.username);
-  const prompt = body.prompt.trim();
+  const urls = (body?.urls ?? []) as string[];
+  const prompt = (body.prompt as string).trim();
   let session = typeof body.sessionId === "string" ? await getSession(body.sessionId) : null;
 
-  if (session?.username !== username) {
-    session = null;
+  if (urls.length === 0 && (!session || session.reels.length === 0)) {
+    return NextResponse.json(
+      { error: "Provide at least 1 Instagram reel URL." },
+      { status: 400 }
+    );
   }
 
-  if (!session) {
-    session = await createSession(username, prompt.slice(0, 80));
-  }
+  const browser = await initBrowser();
+  let context;
 
-  const sessionId = session.id;
-  const initialReelCount = session.reels.length;
+  try {
+    context = await loadOrCreateContext(browser);
 
-  await addMessage(sessionId, "user", prompt);
-  if (!session.title) {
-    await updateSessionTitle(sessionId, prompt.slice(0, 80));
-  }
+    const { success, failed } = await fetchAllReels(urls, context);
 
-  let reelsAnalyzed = initialReelCount;
+    if (success.length === 0) {
+      const errorDetails = failed
+        .map((f) => `Reel ${f.index}: ${f.error}`)
+        .join("; ");
+      const msg = `All reel URLs failed: ${errorDetails}`;
 
-  if (reelsAnalyzed === 0) {
-    try {
-      const scraped = await scrapeReels(username);
-      await storeReels(sessionId, username, scraped);
-      reelsAnalyzed = scraped.length;
+      if (!session) {
+        session = await createSession("unknown", prompt.slice(0, 80));
+      }
+      await addMessage(session.id, "user", prompt);
+      await addMessage(session.id, "assistant", msg);
+
+      return NextResponse.json({
+        sessionId: session.id,
+        username: "unknown",
+        reelsAnalyzed: 0,
+        failedReels: failed,
+        error: msg,
+      });
+    }
+
+    const username = normalizeUsername(success[0].username);
+
+    if (session?.username !== username) {
+      session = null;
+    }
+
+    if (!session) {
+      session = await createSession(username, prompt.slice(0, 80));
+    }
+
+    const sessionId = session.id;
+    const initialReelCount = session.reels.length;
+
+    await addMessage(sessionId, "user", prompt);
+    if (!session.title) {
+      await updateSessionTitle(sessionId, prompt.slice(0, 80));
+    }
+
+    let reelsAnalyzed = initialReelCount;
+
+    if (reelsAnalyzed === 0) {
+      const reelsToStore: ScrapedReel[] = success.map((r) => ({
+        shortcode: r.shortcode,
+        url: r.url,
+        thumbnailUrl: r.thumbnailUrl,
+        videoUrl: r.videoUrl,
+        caption: r.caption,
+        viewCount: r.viewCount,
+        postDate: r.postDate,
+        durationSec: r.durationSec,
+      }));
+
+      await storeReels(sessionId, username, reelsToStore);
+      reelsAnalyzed = reelsToStore.length;
 
       if (reelsAnalyzed === 0) {
-        const msg = `Scraped @${username} but found 0 Reels. The account may have no Reels or is unavailable.`;
+        const msg = `Found 0 usable reels from ${urls.length} URLs.`;
         await addMessage(sessionId, "assistant", msg);
-        return NextResponse.json({ sessionId, username, reelsAnalyzed });
+        return NextResponse.json({
+          sessionId,
+          username,
+          reelsAnalyzed: 0,
+          failedReels: failed,
+        });
       }
 
-      // Reload session to get stored reels with IDs
       const loaded = await getSession(sessionId);
       if (!loaded) {
         throw new Error("Session not found after storing reels.");
       }
       session = loaded;
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      const msg = `Failed to scrape Reels for @${username}: ${errMsg}`;
-      await addMessage(sessionId, "assistant", msg);
-      return NextResponse.json({
-        sessionId,
-        username,
-        reelsAnalyzed: -1,
-        error: errMsg,
-      });
     }
-  }
 
-  // Run Gemini analysis
-  try {
     const result = await runAnalysis(prompt, session.reels);
 
-    // Persist Gemini file URIs back to reels
     for (const uploaded of result.uploadedReels) {
       await updateReelGeminiFile(uploaded.reelId, uploaded.geminiFileUri, uploaded.geminiFileExpiresAt);
     }
@@ -106,21 +155,29 @@ export async function POST(request: Request) {
     }
 
     await addMessage(session.id, "assistant", analysisText, result.rawGemini);
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-    const msg = `Analysis failed: ${errMsg}`;
-    await addMessage(session.id, "assistant", msg);
+
     return NextResponse.json({
       sessionId: session.id,
       username,
       reelsAnalyzed,
+      failedReels: failed,
+    });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+
+    if (!session) {
+      session = await createSession("unknown", prompt.slice(0, 80));
+      await addMessage(session.id, "user", prompt);
+    }
+    await addMessage(session.id, "assistant", `Analysis failed: ${errMsg}`);
+
+    return NextResponse.json({
+      sessionId: session.id,
+      username: session.username,
+      reelsAnalyzed: 0,
       error: errMsg,
     });
+  } finally {
+    await closeBrowser(browser);
   }
-
-  return NextResponse.json({
-    sessionId: session.id,
-    username,
-    reelsAnalyzed,
-  });
 }

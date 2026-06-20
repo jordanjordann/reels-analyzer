@@ -9,26 +9,6 @@ export type ScrapedReel = {
   durationSec: number | null;
 };
 
-export type ReelPageData = {
-  videoUrl: string | null;
-  caption: string | null;
-  viewCount: number | null;
-  postDate: string | null;
-  durationSec: number | null;
-};
-
-export type ReelCacheEntry = {
-  shortcode: string;
-  videoUrl: string | null;
-  caption: string | null;
-  viewCount: number | null;
-  postDate: string | null;
-  durationSec: number | null;
-  cachedAt: number;
-};
-
-export type ReelCache = Record<string, ReelCacheEntry>;
-
 export type DownloadResult = {
   filePath: string;
   durationSec: number | null;
