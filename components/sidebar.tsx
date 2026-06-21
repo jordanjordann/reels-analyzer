@@ -15,17 +15,25 @@ export function Sidebar() {
           <FilmIcon className="size-4" aria-hidden="true" />
         </div>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Reels</p>
-          <h1 className="font-heading text-base font-semibold tracking-[-0.04em]">Analyzer</h1>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Reels
+          </p>
+          <h1 className="font-heading text-base font-semibold tracking-[-0.04em]">
+            Analyzer
+          </h1>
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 p-3">
+      <nav className="flex flex-1 flex-col gap-2 p-3">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Analysis
+        </p>
         <Link
           href="/analyses"
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-sidebar-accent",
-            pathname?.startsWith("/analyses") && "bg-sidebar-accent text-sidebar-foreground",
+            pathname?.startsWith("/analyses") &&
+              "bg-sidebar-accent text-sidebar-foreground",
           )}
         >
           <LayoutGridIcon className="size-4 text-accent" aria-hidden="true" />
