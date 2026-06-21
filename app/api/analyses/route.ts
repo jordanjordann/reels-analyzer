@@ -39,13 +39,10 @@ async function getUserReels(username: string) {
         r.post_date,
         r.caption,
         r.created_at,
-        CASE WHEN EXISTS (
-          SELECT 1 FROM messages m
-          WHERE m.session_id = r.session_id
-            AND m.role = 'assistant'
-            AND m.content LIKE '%"reels"%'
-        ) THEN 1 ELSE 0 END AS has_analysis
+        a.viral_intelligence_score AS analysis_score,
+        CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END AS has_analysis
       FROM reels r
+      LEFT JOIN analyses a ON a.reel_id = r.id
       WHERE r.username = ?
       ORDER BY r.created_at DESC
     `,
@@ -64,6 +61,7 @@ async function getUserReels(username: string) {
     caption: typeof row.caption === "string" ? row.caption : null,
     createdAt: String(row.created_at),
     hasAnalysis: Number(row.has_analysis) === 1,
+    analysisScore: row.analysis_score != null ? Number(row.analysis_score) : null,
   }));
 }
 
@@ -93,21 +91,21 @@ async function getReelDetail(shortcode: string) {
   }
 
   const reel = reelResult.rows[0];
+  const reelId = String(reel.id);
   const sessionId = String(reel.session_id);
 
-  const messagesResult = await db.execute({
+  const analysisResult = await db.execute({
     sql: `
-      SELECT m.content,
-             (SELECT m2.content FROM messages m2 WHERE m2.session_id = ? AND m2.role = 'user' ORDER BY m2.created_at ASC LIMIT 1) AS user_prompt
-      FROM messages m
-      WHERE m.session_id = ? AND m.role = 'assistant' AND m.content LIKE '%"reels"%'
-      ORDER BY m.created_at DESC
+      SELECT a.content, a.user_prompt
+      FROM analyses a
+      WHERE a.reel_id = ?
+      ORDER BY a.created_at DESC
       LIMIT 1
     `,
-    args: [sessionId, sessionId],
+    args: [reelId],
   });
 
-  const message = messagesResult.rows[0];
+  const analysis = analysisResult.rows[0];
 
   return {
     id: String(reel.id),
@@ -120,9 +118,9 @@ async function getReelDetail(shortcode: string) {
     postDate: typeof reel.post_date === "string" ? reel.post_date : null,
     caption: typeof reel.caption === "string" ? reel.caption : null,
     createdAt: String(reel.created_at),
-    hasAnalysis: !!message,
-    analysis: typeof message?.content === "string" ? message.content : null,
-    userPrompt: typeof message?.user_prompt === "string" ? message.user_prompt : null,
+    hasAnalysis: !!analysis,
+    analysis: typeof analysis?.content === "string" ? analysis.content : null,
+    userPrompt: typeof analysis?.user_prompt === "string" ? analysis.user_prompt : null,
   };
 }
 

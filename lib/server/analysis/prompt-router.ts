@@ -1,113 +1,161 @@
 import { uploadReelVideo, analyzeReels } from "./gemini";
-import { buildSystemInstruction, buildUserPrompt, buildMetadataOnlyPrompt } from "@/shared/analysis/analysis-rubric";
+import { buildPerReelSystemInstruction, buildPerReelUserPrompt, buildPerReelMetadataOnlyPrompt } from "@/shared/analysis/analysis-rubric";
+import { MAX_CONCURRENT_REELS } from "./constants";
 import type { ReelRecord } from "@/server/sessions/types";
-import type { AnalysisResult } from "./types";
+import type { AnalysisResult, PerReelAnalysisResult } from "./types";
 
+class ConcurrencyLimiter {
+  private running = 0;
+  private queue: Array<() => void> = [];
 
+  constructor(private readonly limit: number) {}
 
-
-
-export async function runAnalysis(prompt: string, reels: ReelRecord[]): Promise<AnalysisResult> {
-  const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "10", 10);
-  const reelsToAnalyze = reels.slice(0, maxReels);
-  const reelsWithVideo = reelsToAnalyze.filter((r) => r.videoUrl);
-
-  console.log(`Analysis: ${reelsToAnalyze.length} reels total, ${reelsWithVideo.length} with video URLs`);
-
-  // Validate: we need at least some data to work with
-  const reelsWithAnyMetadata = reelsToAnalyze.filter(
-    (r) => r.caption || r.viewCount || r.postDate || r.durationSec
-  );
-
-  if (reelsWithVideo.length === 0 && reelsWithAnyMetadata.length === 0) {
-    throw new Error(
-      `Failed to extract any usable data from ${reelsToAnalyze.length} reels. ` +
-      `No video URLs and no metadata (captions, views, dates, durations) were found. ` +
-      `The account may be private or Instagram's structure may have changed.`
-    );
+  async acquire() {
+    while (this.running >= this.limit) {
+      await new Promise<void>((resolve) => this.queue.push(resolve));
+    }
+    this.running++;
   }
 
-  // Upload each reel video to Gemini File API
-  const uploadResults = await Promise.allSettled(
-    reelsWithVideo.map((reel) => uploadReelVideo(reel.videoUrl!))
+  release() {
+    this.running--;
+    const next = this.queue.shift();
+    if (next) next();
+  }
+}
+
+async function runWithLimiter<T>(limiter: ConcurrencyLimiter, fn: () => Promise<T>): Promise<T> {
+  await limiter.acquire();
+  try {
+    return await fn();
+  } finally {
+    limiter.release();
+  }
+}
+
+async function uploadReelWithFallback(
+  reel: ReelRecord,
+  limiter: ConcurrencyLimiter,
+): Promise<{ fileUri: string | null; fileExpiresAt: string | null }> {
+  return runWithLimiter(limiter, async () => {
+    if (!reel.videoUrl) {
+      return { fileUri: null, fileExpiresAt: null };
+    }
+    const uploadResult = await uploadReelVideo(reel.videoUrl);
+    if (!uploadResult) {
+      console.warn(`Failed to upload video for reel ${reel.igShortcode}`);
+    }
+    return {
+      fileUri: uploadResult?.fileUri ?? null,
+      fileExpiresAt: uploadResult?.fileExpiresAt ?? null,
+    };
+  });
+}
+
+async function analyzeReel(
+  reel: ReelRecord,
+  prompt: string,
+  fileUri: string | null,
+  limiter: ConcurrencyLimiter,
+): Promise<{ analysis: string; rawGemini: string; usedMetadataOnly: boolean }> {
+  return runWithLimiter(limiter, async () => {
+    const systemInstruction = buildPerReelSystemInstruction();
+
+    if (fileUri) {
+      const userPrompt = buildPerReelUserPrompt(prompt, reel);
+      const geminiResult = await analyzeReels([fileUri], systemInstruction, userPrompt);
+      return { analysis: geminiResult.content, rawGemini: geminiResult.rawGemini, usedMetadataOnly: false };
+    }
+
+    const hasMetadata = reel.caption || reel.viewCount || reel.postDate || reel.durationSec;
+    if (hasMetadata) {
+      console.log(`Falling back to metadata-only analysis for reel ${reel.igShortcode}`);
+      const userPrompt = buildPerReelMetadataOnlyPrompt(prompt, reel);
+      const geminiResult = await analyzeReels([], systemInstruction, userPrompt);
+      return { analysis: geminiResult.content, rawGemini: geminiResult.rawGemini, usedMetadataOnly: true };
+    }
+
+    throw new Error(`No video and no metadata for reel ${reel.igShortcode}`);
+  });
+}
+
+export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[]): Promise<PerReelAnalysisResult[]> {
+  const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "10", 10);
+  const reelsToAnalyze = reels.slice(0, maxReels);
+
+  console.log(`Per-reel analysis: ${reelsToAnalyze.length} reels total (concurrency: ${MAX_CONCURRENT_REELS})`);
+
+  const uploadLimiter = new ConcurrencyLimiter(MAX_CONCURRENT_REELS);
+  const analysisLimiter = new ConcurrencyLimiter(MAX_CONCURRENT_REELS);
+
+  // Phase 1: Upload all videos in parallel
+  const uploadResults = await Promise.all(
+    reelsToAnalyze.map((reel) => uploadReelWithFallback(reel, uploadLimiter)),
   );
 
-  const uploadedReels: AnalysisResult["uploadedReels"] = [];
-  const fileUris: string[] = [];
-  let uploadedCount = 0;
-  let failedCount = 0;
+  // Phase 2: Run all Gemini analyses in parallel
+  const analysisResults = await Promise.allSettled(
+    reelsToAnalyze.map((reel, i) => analyzeReel(reel, prompt, uploadResults[i].fileUri, analysisLimiter)),
+  );
 
-  // Map upload results back to all reels
-  let videoIndex = 0;
-  for (const reel of reelsToAnalyze) {
-    if (!reel.videoUrl) {
-      uploadedReels.push({
-        reelId: reel.id,
-        geminiFileUri: null,
-        geminiFileExpiresAt: null,
-      });
+  // Build results, skipping failed analyses
+  const results: PerReelAnalysisResult[] = [];
+  for (let i = 0; i < reelsToAnalyze.length; i++) {
+    const reel = reelsToAnalyze[i];
+    const analysisResult = analysisResults[i];
+
+    if (analysisResult.status === "rejected") {
+      console.warn(`Skipping reel ${reel.igShortcode}: ${analysisResult.reason instanceof Error ? analysisResult.reason.message : String(analysisResult.reason)}`);
       continue;
     }
 
-    const result = uploadResults[videoIndex];
-    videoIndex++;
+    const { analysis, rawGemini, usedMetadataOnly } = analysisResult.value;
 
-    if (result.status === "fulfilled" && result.value) {
-      uploadedReels.push({
-        reelId: reel.id,
-        geminiFileUri: result.value.fileUri,
-        geminiFileExpiresAt: result.value.fileExpiresAt,
-      });
-      fileUris.push(result.value.fileUri);
-      uploadedCount++;
-    } else {
-      uploadedReels.push({
-        reelId: reel.id,
-        geminiFileUri: null,
-        geminiFileExpiresAt: null,
-      });
-      failedCount++;
-      console.warn(`Failed to upload reel ${reel.igShortcode}: ${result.status === "rejected" ? result.reason : "upload returned null"}`);
-    }
+    results.push({
+      reelId: reel.id,
+      shortcode: reel.igShortcode,
+      analysis,
+      rawGemini,
+      geminiFileUri: uploadResults[i].fileUri,
+      geminiFileExpiresAt: uploadResults[i].fileExpiresAt,
+      usedMetadataOnly,
+    });
   }
 
-  console.log(`Upload complete: ${uploadedCount} succeeded, ${failedCount} failed, ${reelsToAnalyze.length - reelsWithVideo.length} had no video URL`);
+  console.log(`Per-reel analysis complete: ${results.length} of ${reelsToAnalyze.length} reels analyzed`);
+  return results;
+}
 
-  // If we have some videos, proceed with video analysis
-  if (fileUris.length > 0) {
-    const systemInstruction = buildSystemInstruction();
-    const userPrompt = buildUserPrompt(prompt, fileUris.length, reelsToAnalyze);
-    const analysisResult = await analyzeReels(fileUris, systemInstruction, userPrompt);
+export async function runAnalysis(prompt: string, reels: ReelRecord[]): Promise<AnalysisResult> {
+  const perReelResults = await runPerReelAnalysis(prompt, reels);
 
-    return {
-      analysis: analysisResult.content,
-      rawGemini: analysisResult.rawGemini,
-      uploadedReels,
-      videoCount: fileUris.length,
-      totalCount: reelsToAnalyze.length,
-      usedMetadataOnly: false,
-    };
-  }
+  const uploadedReels = perReelResults.map((r) => ({
+    reelId: r.reelId,
+    geminiFileUri: r.geminiFileUri,
+    geminiFileExpiresAt: r.geminiFileExpiresAt,
+  }));
 
-  // Fallback: metadata-only analysis when no videos could be uploaded
-  if (reelsWithAnyMetadata.length === 0) {
-    throw new Error(
-      `All video uploads failed and no metadata is available for ${reelsToAnalyze.length} reels. ` +
-      `Cannot perform analysis without any data.`
-    );
-  }
+  const videoCount = perReelResults.filter((r) => !r.usedMetadataOnly).length;
+  const totalCount = reels.length;
+  const usedMetadataOnly = perReelResults.length > 0 && perReelResults.every((r) => r.usedMetadataOnly);
 
-  console.log("No videos available, falling back to metadata-only analysis");
-  const systemInstruction = buildSystemInstruction();
-  const userPrompt = buildMetadataOnlyPrompt(prompt, reelsToAnalyze);
-  const analysisResult = await analyzeReels([], systemInstruction, userPrompt);
+  const combinedAnalysis = perReelResults
+    .map((r) => {
+      let prefix = "";
+      if (r.usedMetadataOnly) {
+        prefix = "⚠️ Video analysis was not available — this response is based on metadata only.\n\n";
+      }
+      return `${prefix}--- ${r.shortcode} ---\n${r.analysis}`;
+    })
+    .join("\n\n---\n\n");
 
   return {
-    analysis: analysisResult.content,
-    rawGemini: analysisResult.rawGemini,
+    analysis: combinedAnalysis,
+    rawGemini: JSON.stringify(perReelResults.map((r) => r.rawGemini)),
     uploadedReels,
-    videoCount: 0,
-    totalCount: reelsToAnalyze.length,
-    usedMetadataOnly: true,
+    perReelResults,
+    videoCount,
+    totalCount,
+    usedMetadataOnly,
   };
 }

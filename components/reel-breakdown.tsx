@@ -2,6 +2,7 @@
 
 import type { ReelAnalysis } from "@/shared/analysis/types";
 import { DIMENSION_LABELS } from "@/shared/analysis/constants";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { cn } from "@/shared/utils";
 
 const LABEL_COLORS: Record<string, string> = {
@@ -80,7 +81,7 @@ export function ReelBreakdown({ reel }: { reel: ReelAnalysis }) {
             <p className="text-xs font-mono uppercase tracking-wider text-accent mb-1">
               {key.replace(/([A-Z])/g, " $1").trim()}
             </p>
-            <p className="text-sm text-muted-foreground">{val}</p>
+            <MarkdownRenderer content={val} className="text-muted-foreground" />
           </div>
         ))}
       </div>

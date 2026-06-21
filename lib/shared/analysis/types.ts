@@ -75,15 +75,7 @@ export type ReelAnalysis = {
   recommendedNextExperiments: string[];
 };
 
-export type CrossReelAnalysis = {
-  recurringPatterns: string[];
-  topPerformingFormula: string;
-  improvementOpportunities: string[];
-  recommendedFocus: string;
-};
-
 export type StructuredAnalysis = {
-  reels: ReelAnalysis[];
-  crossReel: CrossReelAnalysis;
-  overallViralIntelligenceScore: number;
+  reel: ReelAnalysis;
+  viralIntelligenceScore: number;
 };

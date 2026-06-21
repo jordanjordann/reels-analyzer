@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { XIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { PromptForm, type AnalysisStage } from "@/components/prompt-form";
 import { SESSION_KEYS } from "@/api/sessions/hooks";
@@ -13,9 +13,13 @@ export function NewAnalysisModal({
   defaultUsername?: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [isClosing, setIsClosing] = useState(false);
-  const [urls, setUrls] = useState<string[]>([]);
+  const [urls, setUrls] = useState<string[]>(() => {
+    const urlParam = searchParams.get("url");
+    return urlParam ? [urlParam] : [];
+  });
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

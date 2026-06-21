@@ -2,8 +2,6 @@
 
 import type { StructuredAnalysis } from "@/shared/analysis/types";
 import { ReelBreakdown } from "@/components/reel-breakdown";
-import { CrossReelSummary } from "@/components/cross-reel-summary";
-import { TrendingUpIcon } from "lucide-react";
 import { cn } from "@/shared/utils";
 
 function overallScoreColor(score: number): string {
@@ -22,12 +20,12 @@ function overallScoreRing(score: number): string {
 
 export function AnalysisResults({ analysis }: { analysis: StructuredAnalysis }) {
   const circumference = 2 * Math.PI * 36;
-  const score = analysis.overallViralIntelligenceScore;
+  const score = analysis.viralIntelligenceScore;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Overall Score Header */}
+    <div className="flex flex-col gap-5 mb-6">
+      {/* Score Header */}
       <div className="flex items-center gap-4">
         <div className="relative size-20">
           <svg className="size-20 -rotate-90" viewBox="0 0 80 80">
@@ -59,28 +57,15 @@ export function AnalysisResults({ analysis }: { analysis: StructuredAnalysis }) 
           </div>
         </div>
         <div>
-          <h3 className="font-heading text-lg font-semibold tracking-tight">Overall Analysis</h3>
+          <h3 className="font-heading text-lg font-semibold tracking-tight">Viral Intelligence</h3>
           <p className="text-sm text-muted-foreground">
-            {analysis.reels.length} reel{analysis.reels.length !== 1 ? "s" : ""} analyzed
+            {analysis.reel.oneLineDiagnosis}
           </p>
         </div>
       </div>
 
-      {/* Per-Reel Breakdown */}
-      <div>
-        <h3 className="font-heading text-base font-semibold tracking-tight mb-3 flex items-center gap-2">
-          <TrendingUpIcon className="size-4 text-accent" />
-          Per-Reel Breakdown
-        </h3>
-        <div className="flex flex-col gap-4">
-          {analysis.reels.map((reel) => (
-            <ReelBreakdown key={reel.shortcode} reel={reel} />
-          ))}
-        </div>
-      </div>
-
-      {/* Cross-Reel Summary */}
-      <CrossReelSummary summary={analysis.crossReel} />
+      {/* Reel Breakdown */}
+      <ReelBreakdown reel={analysis.reel} />
     </div>
   );
 }

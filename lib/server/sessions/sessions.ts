@@ -216,3 +216,19 @@ export async function deleteSession(id: string): Promise<boolean> {
   });
   return result.rowsAffected > 0;
 }
+
+export async function storeAnalysis(
+  reelId: string,
+  sessionId: string,
+  content: string,
+  rawGemini: string | null,
+  userPrompt: string | null,
+  viralIntelligenceScore: number | null,
+) {
+  const id = randomUUID();
+  await db.execute({
+    sql: "INSERT INTO analyses (id, reel_id, session_id, content, raw_gemini, user_prompt, viral_intelligence_score) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    args: [id, reelId, sessionId, content, rawGemini, userPrompt, viralIntelligenceScore],
+  });
+  return id;
+}

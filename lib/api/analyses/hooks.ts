@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getAnalysisUsers, getAnalysisUserReels, getAnalysisReelDetail } from "@/api/analyses/api";
+import { getAnalysisUsers, getAnalysisUserReels, getAnalysisReelDetail, deleteAnalysisReel } from "@/api/analyses/api";
 import { ANALYSES_KEYS } from "@/api/analyses/constants";
 
 export { ANALYSES_KEYS } from "@/api/analyses/constants";
@@ -41,5 +41,15 @@ export function useAnalysisReelDetail(shortcode: string | null) {
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+  });
+}
+
+export function useDeleteAnalysisReel(username: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteAnalysisReel,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.userReels(username) });
+    },
   });
 }

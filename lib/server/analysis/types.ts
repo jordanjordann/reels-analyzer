@@ -25,10 +25,21 @@ export type GeminiAnalysisResult = {
   rawGemini: string;
 };
 
+export type PerReelAnalysisResult = {
+  reelId: string;
+  shortcode: string;
+  analysis: string;
+  rawGemini: string;
+  geminiFileUri: string | null;
+  geminiFileExpiresAt: string | null;
+  usedMetadataOnly: boolean;
+};
+
 export type AnalysisResult = {
   analysis: string;
   rawGemini: string;
   uploadedReels: { reelId: string; geminiFileUri: string | null; geminiFileExpiresAt: string | null }[];
+  perReelResults: PerReelAnalysisResult[];
   videoCount: number;
   totalCount: number;
   usedMetadataOnly: boolean;

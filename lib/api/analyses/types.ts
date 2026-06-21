@@ -17,6 +17,7 @@ export type AnalysisReelSummary = {
   caption: string | null;
   createdAt: string;
   hasAnalysis: boolean;
+  analysisScore: number | null;
 };
 
 export type AnalysisReelDetail = AnalysisReelSummary & {

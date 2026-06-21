@@ -30,3 +30,10 @@ export async function getAnalysisReelDetail(shortcode: string): Promise<Analyses
     `/api/analyses?mode=reel-detail&shortcode=${encodeURIComponent(shortcode)}`,
   );
 }
+
+export async function deleteAnalysisReel(shortcode: string): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(
+    `/api/analyses/${encodeURIComponent(shortcode)}`,
+    { method: "DELETE" },
+  );
+}

@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { XIcon, LoaderCircleIcon, AlertTriangleIcon, CalendarIcon, EyeIcon, FilmIcon } from "lucide-react";
+import { XIcon, LoaderCircleIcon, AlertTriangleIcon, CalendarIcon, EyeIcon, FilmIcon, Trash2Icon, RefreshCwIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
 import { exportAnalysisToMarkdown, downloadMarkdown } from "@/shared/analysis/export-analysis";
 import { AnalysisResults } from "@/components/analysis-results";
-import { MarkdownRenderer } from "@/components/markdown-renderer";
-import { useAnalysisReelDetail } from "@/api/analyses/hooks";
+import { useAnalysisReelDetail, useDeleteAnalysisReel } from "@/api/analyses/hooks";
 
 function formatViews(count: number | null) {
   if (count == null) return null;
@@ -32,7 +31,9 @@ export function AnalysisModal({
 }) {
   const router = useRouter();
   const { data, isFetching, error } = useAnalysisReelDetail(shortcode);
+  const deleteMutation = useDeleteAnalysisReel(username);
   const [isClosing, setIsClosing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleClose = useCallback(() => {
     setIsClosing(true);
@@ -40,6 +41,25 @@ export function AnalysisModal({
       router.back();
     }, 150);
   }, [router]);
+
+  const handleReAnalyze = useCallback(() => {
+    const reelUrl = data?.reel?.igUrl ?? null;
+    if (reelUrl) {
+      router.push(`/analyses/${username}?new=true&url=${encodeURIComponent(reelUrl)}`);
+    } else {
+      router.push(`/analyses/${username}?new=true`);
+    }
+  }, [router, username, data]);
+
+  const handleDelete = useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      await deleteMutation.mutateAsync(shortcode);
+      router.back();
+    } catch {
+      setIsDeleting(false);
+    }
+  }, [deleteMutation, shortcode, router]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -50,22 +70,7 @@ export function AnalysisModal({
   }, [handleClose]);
 
   const reel = data?.reel ?? null;
-  const fullStructured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
-
-  // Try to find the specific reel, fallback to full analysis
-  let structured = fullStructured;
-  if (fullStructured && fullStructured.reels.length > 1) {
-    const matchingReel = fullStructured.reels.find(
-      (r) => r.shortcode.toLowerCase() === shortcode.toLowerCase(),
-    );
-    if (matchingReel) {
-      structured = {
-        reels: [matchingReel],
-        crossReel: fullStructured.crossReel,
-        overallViralIntelligenceScore: fullStructured.overallViralIntelligenceScore,
-      };
-    }
-  }
+  const structured = reel?.analysis ? parseStructuredAnalysis(reel.analysis) : null;
 
   const title = reel?.caption?.trim() || `Reel ${shortcode}`;
   const views = formatViews(reel?.viewCount ?? null);
@@ -160,7 +165,11 @@ export function AnalysisModal({
                 <AnalysisResults analysis={structured} />
               </div>
             ) : reel?.analysis ? (
-              <MarkdownRenderer content={reel.analysis} />
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                <AlertTriangleIcon className="size-8 text-orange-400" aria-hidden="true" />
+                <p className="text-muted-foreground">Analysis response was malformed and could not be parsed.</p>
+                <p className="text-xs text-muted-foreground">Try re-analyzing this reel.</p>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
                 <AlertTriangleIcon className="size-8" aria-hidden="true" />
@@ -168,6 +177,31 @@ export function AnalysisModal({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t px-6 py-3">
+          <button
+            type="button"
+            onClick={handleReAnalyze}
+            className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary/80"
+          >
+            <RefreshCwIcon className="size-4" aria-hidden="true" />
+            Re-analyze
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+          >
+            {isDeleting ? (
+              <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2Icon className="size-4" aria-hidden="true" />
+            )}
+            {isDeleting ? "Deleting..." : "Delete Reel"}
+          </button>
         </div>
       </div>
     </div>

@@ -13,7 +13,9 @@ import {
   updateReelGeminiFile,
   updateSessionTitle,
   validatePrompt,
+  storeAnalysis,
 } from "@/server/sessions";
+import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
 import type { ScrapedReel } from "@/server/analysis/types";
 import { runAnalysis } from "@/server/analysis/prompt-router";
 
@@ -55,8 +57,6 @@ export async function POST(request: Request) {
   const prompt = (body.prompt as string).trim();
   const confirmBudget = body?.confirmBudget === true;
   let session = typeof body.sessionId === "string" ? await getSession(body.sessionId) : null;
-
-  // If no sessionId provided, try to find existing session by username after fetching reels
 
   if (urls.length === 0 && (!session || session.reels.length === 0)) {
     return NextResponse.json(
@@ -184,14 +184,23 @@ export async function POST(request: Request) {
       await updateReelGeminiFile(uploaded.reelId, uploaded.geminiFileUri, uploaded.geminiFileExpiresAt);
     }
 
-    let analysisText = result.analysis;
-    if (result.usedMetadataOnly) {
-      analysisText = `⚠️ Video analysis was not available — this response is based on metadata only.\n\n${result.analysis}`;
-    } else if (result.videoCount < result.totalCount) {
-      analysisText = `ℹ️ Analyzed ${result.videoCount} of ${result.totalCount} reels (some videos could not be processed).\n\n${result.analysis}`;
+    // Store each per-reel analysis in the analyses table
+    for (const perReel of result.perReelResults) {
+      const structured = parseStructuredAnalysis(perReel.analysis);
+      const score = structured?.viralIntelligenceScore ?? null;
+      await storeAnalysis(
+        perReel.reelId,
+        sessionId,
+        perReel.analysis,
+        perReel.rawGemini,
+        prompt,
+        score,
+      );
     }
 
-    await addMessage(session.id, "assistant", analysisText, result.rawGemini);
+    // Also store a summary message for backward compatibility
+    const analysisText = `Analyzed ${result.perReelResults.length} reel(s) individually.`;
+    await addMessage(session.id, "assistant", analysisText);
 
     return NextResponse.json({
       sessionId: session.id,

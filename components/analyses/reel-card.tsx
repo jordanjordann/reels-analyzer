@@ -1,7 +1,8 @@
 "use client";
 
-import { EyeIcon, PlayIcon, SparklesIcon } from "lucide-react";
+import { EyeIcon, PlayIcon } from "lucide-react";
 import type { AnalysisReelSummary } from "@/api/analyses/types";
+import { cn } from "@/shared/utils";
 
 const dateFormatter = new Intl.DateTimeFormat("en", {
   month: "short",
@@ -21,6 +22,13 @@ function formatViews(count: number | null) {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
   return count.toLocaleString();
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return "bg-green-500/90 text-white";
+  if (score >= 60) return "bg-yellow-500/90 text-white";
+  if (score >= 40) return "bg-orange-500/90 text-white";
+  return "bg-red-500/90 text-white";
 }
 
 export function ReelCard({
@@ -54,9 +62,9 @@ export function ReelCard({
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
-      {reel.hasAnalysis && (
-        <div className="absolute right-2 top-2 rounded-md bg-accent/90 p-1 text-white">
-          <SparklesIcon className="size-3.5" aria-hidden="true" />
+      {reel.hasAnalysis && reel.analysisScore != null && (
+        <div className={cn("absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-xs font-mono font-bold", scoreColor(reel.analysisScore))}>
+          {reel.analysisScore}
         </div>
       )}
 
