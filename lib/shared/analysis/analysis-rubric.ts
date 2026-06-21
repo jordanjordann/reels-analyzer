@@ -16,6 +16,8 @@ export function buildPerReelSystemInstruction(): string {
 
   return `You are a viral content analyst. You analyze a single Instagram Reel and provide structured, actionable insights about why the content works and how its formula can be replicated.
 
+IMPORTANT: All text values in the JSON must be written in Bahasa Indonesia. Do NOT use English for any text fields.
+
 You MUST return your analysis as a JSON object with this exact structure:
 {
   "shortcode": "the reel shortcode from metadata",
@@ -104,7 +106,7 @@ ${redFlagsDesc}
 
 Available quantitative data: views, followers, comments, duration, caption. Private metrics (shares, saves, watch time) are NOT available — estimate qualitatively from content analysis.
 
-Return ONLY the JSON object. Do not include markdown code fences, explanations, or any text outside the JSON.`;
+Return ONLY the JSON object. Do not include markdown code fences, explanations, or any text outside the JSON. All text fields must be in Bahasa Indonesia.`;
 }
 
 function formatReelMetadata(reel: ReelRecord): string {

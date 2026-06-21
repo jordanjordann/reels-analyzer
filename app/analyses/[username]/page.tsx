@@ -12,6 +12,7 @@ import { useAnalysisUserReels } from "@/api/analyses/hooks";
 import { ReelGrid } from "@/components/analyses/reel-grid";
 import { AnalysisModal } from "@/components/analyses/analysis-modal";
 import { NewAnalysisModal } from "@/components/analyses/new-analysis-modal";
+import { ProfileAnalysisTab } from "@/components/analyses/profile-analysis-tab";
 import { cn } from "@/shared/utils";
 import type { AnalysisReelSummary } from "@/api/analyses/types";
 
@@ -92,10 +93,7 @@ function UserReelsContent() {
         )}
 
         {activeTab === "profile" && (
-          <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-muted-foreground">
-            <UserIcon className="size-10" aria-hidden="true" />
-            <p className="text-sm">Profile analysis coming soon</p>
-          </div>
+          <ProfileAnalysisTab username={username} />
         )}
       </div>
 

@@ -18,6 +18,7 @@ import {
 import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
 import type { ScrapedReel } from "@/server/analysis/types";
 import { runAnalysis } from "@/server/analysis/prompt-router";
+import { generateProfileAnalysis } from "@/server/analysis/profile-analysis";
 
 export const runtime = "nodejs";
 
@@ -201,6 +202,13 @@ export async function POST(request: Request) {
     // Also store a summary message for backward compatibility
     const analysisText = `Analyzed ${result.perReelResults.length} reel(s) individually.`;
     await addMessage(session.id, "assistant", analysisText);
+
+    // Fire-and-forget profile analysis regeneration
+    if (username && result.perReelResults.length > 0) {
+      generateProfileAnalysis(username).catch((err) => {
+        console.error(`Profile analysis failed for ${username}:`, err);
+      });
+    }
 
     return NextResponse.json({
       sessionId: session.id,
