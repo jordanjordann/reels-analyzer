@@ -2,7 +2,7 @@ import { uploadReelVideo, analyzeReels } from "./gemini";
 import { buildPerReelSystemInstruction, buildPerReelUserPrompt, buildPerReelMetadataOnlyPrompt } from "@/shared/analysis/analysis-rubric";
 import { MAX_CONCURRENT_REELS } from "./constants";
 import type { ReelRecord } from "@/server/sessions/types";
-import type { AnalysisResult, PerReelAnalysisResult } from "./types";
+import type { AnalysisResult, PerReelAnalysisResult, UserProfileMetadata } from "./types";
 
 class ConcurrencyLimiter {
   private running = 0;
@@ -57,12 +57,13 @@ async function analyzeReel(
   prompt: string,
   fileUri: string | null,
   limiter: ConcurrencyLimiter,
+  userMetadata: UserProfileMetadata | null,
 ): Promise<{ analysis: string; rawGemini: string; usedMetadataOnly: boolean }> {
   return runWithLimiter(limiter, async () => {
     const systemInstruction = buildPerReelSystemInstruction();
 
     if (fileUri) {
-      const userPrompt = buildPerReelUserPrompt(prompt, reel);
+      const userPrompt = buildPerReelUserPrompt(prompt, reel, userMetadata);
       const geminiResult = await analyzeReels([fileUri], systemInstruction, userPrompt);
       return { analysis: geminiResult.content, rawGemini: geminiResult.rawGemini, usedMetadataOnly: false };
     }
@@ -70,7 +71,7 @@ async function analyzeReel(
     const hasMetadata = reel.caption || reel.viewCount || reel.postDate || reel.durationSec;
     if (hasMetadata) {
       console.log(`Falling back to metadata-only analysis for reel ${reel.igShortcode}`);
-      const userPrompt = buildPerReelMetadataOnlyPrompt(prompt, reel);
+      const userPrompt = buildPerReelMetadataOnlyPrompt(prompt, reel, userMetadata);
       const geminiResult = await analyzeReels([], systemInstruction, userPrompt);
       return { analysis: geminiResult.content, rawGemini: geminiResult.rawGemini, usedMetadataOnly: true };
     }
@@ -79,7 +80,7 @@ async function analyzeReel(
   });
 }
 
-export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[]): Promise<PerReelAnalysisResult[]> {
+export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[], userMetadata: UserProfileMetadata | null): Promise<PerReelAnalysisResult[]> {
   const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "10", 10);
   const reelsToAnalyze = reels.slice(0, maxReels);
 
@@ -95,7 +96,7 @@ export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[]): P
 
   // Phase 2: Run all Gemini analyses in parallel
   const analysisResults = await Promise.allSettled(
-    reelsToAnalyze.map((reel, i) => analyzeReel(reel, prompt, uploadResults[i].fileUri, analysisLimiter)),
+    reelsToAnalyze.map((reel, i) => analyzeReel(reel, prompt, uploadResults[i].fileUri, analysisLimiter, userMetadata)),
   );
 
   // Build results, skipping failed analyses
@@ -126,8 +127,8 @@ export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[]): P
   return results;
 }
 
-export async function runAnalysis(prompt: string, reels: ReelRecord[]): Promise<AnalysisResult> {
-  const perReelResults = await runPerReelAnalysis(prompt, reels);
+export async function runAnalysis(prompt: string, reels: ReelRecord[], userMetadata: UserProfileMetadata | null): Promise<AnalysisResult> {
+  const perReelResults = await runPerReelAnalysis(prompt, reels, userMetadata);
 
   const uploadedReels = perReelResults.map((r) => ({
     reelId: r.reelId,

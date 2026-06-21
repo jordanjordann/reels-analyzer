@@ -1,4 +1,5 @@
 import type { ReelRecord } from "@/server/sessions/types";
+import type { UserProfileMetadata } from "@/server/analysis/types";
 import { VIRAL_QUALITY_DIMENSIONS, SCORE_GROUPS, RED_FLAGS, NARRATIVE_FORMULAS } from "./constants";
 
 export function buildPerReelSystemInstruction(): string {
@@ -22,6 +23,7 @@ You MUST return your analysis as a JSON object with this exact structure:
 {
   "shortcode": "the reel shortcode from metadata",
   "oneLineDiagnosis": "one sentence explaining why this reel works or doesn't",
+  "scoreJustification": "concise explanation (2-3 sentences) of why these scores were given, referencing key strengths and weaknesses",
   "scorecard": {
     "performanceScore": 0-100,
     "creativeScore": 0-100,
@@ -106,10 +108,12 @@ ${redFlagsDesc}
 
 Available quantitative data: views, followers, comments, duration, caption. Private metrics (shares, saves, watch time) are NOT available — estimate qualitatively from content analysis.
 
+When user profile metadata is provided (followers, following, posts), use it to calculate view-to-follower ratio and evaluate performance relative to account size.
+
 Return ONLY the JSON object. Do not include markdown code fences, explanations, or any text outside the JSON. All text fields must be in Bahasa Indonesia.`;
 }
 
-function formatReelMetadata(reel: ReelRecord): string {
+function formatReelMetadata(reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
   const parts: string[] = [];
   parts.push(`- Shortcode: ${reel.igShortcode}`);
   parts.push(`- URL: ${reel.igUrl}`);
@@ -117,21 +121,26 @@ function formatReelMetadata(reel: ReelRecord): string {
   if (reel.viewCount) parts.push(`- Views: ${reel.viewCount.toLocaleString()}`);
   if (reel.postDate) parts.push(`- Posted: ${reel.postDate}`);
   if (reel.durationSec) parts.push(`- Duration: ${reel.durationSec}s`);
+  if (userMetadata) {
+    if (userMetadata.followers != null) parts.push(`- Followers: ${userMetadata.followers.toLocaleString()}`);
+    if (userMetadata.following != null) parts.push(`- Following: ${userMetadata.following.toLocaleString()}`);
+    if (userMetadata.posts != null) parts.push(`- Total Posts: ${userMetadata.posts.toLocaleString()}`);
+  }
   return parts.join("\n");
 }
 
-export function buildPerReelUserPrompt(prompt: string, reel: ReelRecord): string {
+export function buildPerReelUserPrompt(prompt: string, reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
   return `Analyze this Instagram Reel using the viral content scoring framework.
 
 User's analysis request: ${prompt}
 
 Reel metadata:
-${formatReelMetadata(reel)}
+${formatReelMetadata(reel, userMetadata)}
 
 Note: Private metrics (shares, saves, watch time, completion rate) are NOT available. Estimate performance qualitatively from views, comments, and content analysis.`;
 }
 
-export function buildPerReelMetadataOnlyPrompt(prompt: string, reel: ReelRecord): string {
+export function buildPerReelMetadataOnlyPrompt(prompt: string, reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
   return `Analyze this Instagram Reel using the viral content scoring framework.
 
 IMPORTANT: Video file was not available. Provide your best analysis using metadata (caption, view count, date, duration) combined with your knowledge of Instagram Reels trends and viral patterns. Do NOT refuse to analyze — provide estimated scores and insights based on metadata patterns.
@@ -139,7 +148,7 @@ IMPORTANT: Video file was not available. Provide your best analysis using metada
 User's analysis request: ${prompt}
 
 Reel metadata:
-${formatReelMetadata(reel)}
+${formatReelMetadata(reel, userMetadata)}
 
 Provide analysis with estimated scores, noting where direct video analysis would have provided additional confidence.`;
 }

@@ -1,3 +1,10 @@
+export type UserProfileMetadata = {
+  username: string;
+  followers: number | null;
+  following: number | null;
+  posts: number | null;
+};
+
 export type ScrapedReel = {
   shortcode: string;
   url: string;

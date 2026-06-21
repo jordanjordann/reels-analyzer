@@ -110,6 +110,9 @@ async function buildSessionDetail(session: Record<string, unknown>): Promise<Ses
     title: typeof session.title === "string" ? session.title : null,
     createdAt: String(session.created_at),
     updatedAt: String(session.updated_at),
+    followerCount: typeof session.follower_count === "number" ? session.follower_count : null,
+    followingCount: typeof session.following_count === "number" ? session.following_count : null,
+    postCount: typeof session.post_count === "number" ? session.post_count : null,
     reels: reelsResult.rows.map((row) => ({
       id: String(row.id),
       sessionId: String(row.session_id),
@@ -158,6 +161,44 @@ export async function updateSessionTitle(sessionId: string, title: string) {
     sql: "UPDATE sessions SET title = ?, updated_at = datetime('now') WHERE id = ?",
     args: [title, sessionId],
   });
+}
+
+export async function upsertProfile(
+  username: string,
+  followerCount: number | null,
+  followingCount: number | null,
+  postCount: number | null,
+) {
+  const normalized = normalizeUsername(username);
+  await db.execute({
+    sql: `INSERT INTO profiles (username, follower_count, following_count, post_count)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(username) DO UPDATE SET
+            follower_count = excluded.follower_count,
+            following_count = excluded.following_count,
+            post_count = excluded.post_count,
+            updated_at = datetime('now')`,
+    args: [normalized, followerCount, followingCount, postCount],
+  });
+}
+
+export async function getProfile(username: string): Promise<{
+  followerCount: number | null;
+  followingCount: number | null;
+  postCount: number | null;
+} | null> {
+  const normalized = normalizeUsername(username);
+  const result = await db.execute({
+    sql: "SELECT follower_count, following_count, post_count FROM profiles WHERE username = ? LIMIT 1",
+    args: [normalized],
+  });
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  return {
+    followerCount: typeof row.follower_count === "number" ? row.follower_count : null,
+    followingCount: typeof row.following_count === "number" ? row.following_count : null,
+    postCount: typeof row.post_count === "number" ? row.post_count : null,
+  };
 }
 
 export function normalizeUsername(username: string) {
@@ -227,7 +268,15 @@ export async function storeAnalysis(
 ) {
   const id = randomUUID();
   await db.execute({
-    sql: "INSERT INTO analyses (id, reel_id, session_id, content, raw_gemini, user_prompt, viral_intelligence_score) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    sql: `INSERT INTO analyses (id, reel_id, session_id, content, raw_gemini, user_prompt, viral_intelligence_score)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(reel_id) DO UPDATE SET
+            session_id = excluded.session_id,
+            content = excluded.content,
+            raw_gemini = excluded.raw_gemini,
+            user_prompt = excluded.user_prompt,
+            viral_intelligence_score = excluded.viral_intelligence_score,
+            created_at = datetime('now')`,
     args: [id, reelId, sessionId, content, rawGemini, userPrompt, viralIntelligenceScore],
   });
   return id;

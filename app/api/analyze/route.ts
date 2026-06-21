@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAuthenticated } from "@/server/auth";
 import { initBrowser, loadOrCreateContext, closeBrowser } from "@/server/analysis/ig-session";
-import { fetchAllReels } from "@/server/analysis/reel-fetcher";
+import { fetchAllReels, fetchUserProfile } from "@/server/analysis/reel-fetcher";
 import {
   addMessage,
   createSession,
@@ -12,7 +12,7 @@ import {
   storeReels,
   updateReelGeminiFile,
   updateSessionTitle,
-  validatePrompt,
+  upsertProfile,
   storeAnalysis,
 } from "@/server/sessions";
 import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
@@ -50,12 +50,8 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!validatePrompt(body?.prompt)) {
-    return NextResponse.json({ error: "Enter a prompt under 4,000 characters." }, { status: 400 });
-  }
-
   const urls = (body?.urls ?? []) as string[];
-  const prompt = (body.prompt as string).trim();
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   const confirmBudget = body?.confirmBudget === true;
   let session = typeof body.sessionId === "string" ? await getSession(body.sessionId) : null;
 
@@ -81,9 +77,11 @@ export async function POST(request: Request) {
       const msg = `All reel URLs failed: ${errorDetails}`;
 
       if (!session) {
-        session = await createSession("unknown", prompt.slice(0, 80));
+        session = await createSession("unknown", prompt.slice(0, 80) || "Reel analysis");
       }
-      await addMessage(session.id, "user", prompt);
+      if (prompt) {
+        await addMessage(session.id, "user", prompt);
+      }
       await addMessage(session.id, "assistant", msg);
 
       return NextResponse.json({
@@ -102,14 +100,51 @@ export async function POST(request: Request) {
     }
 
     if (!session) {
-      session = await createSession(username, prompt.slice(0, 80));
+      session = await createSession(username, prompt.slice(0, 80) || "Reel analysis");
     }
 
     const sessionId = session.id;
 
-    await addMessage(sessionId, "user", prompt);
+    // Scrape full profile data (followers, following, posts) before analysis
+    let profileData: { followerCount: number | null; followingCount: number | null; postCount: number | null };
+    try {
+      const profile = await fetchUserProfile(username, context);
+      if (profile.followerCount == null || profile.followingCount == null || profile.postCount == null) {
+        const missing: string[] = [];
+        if (profile.followerCount == null) missing.push("followers");
+        if (profile.followingCount == null) missing.push("following");
+        if (profile.postCount == null) missing.push("posts");
+        throw new Error(`Could not extract ${missing.join(", ")} from profile page.`);
+      }
+      profileData = {
+        followerCount: profile.followerCount,
+        followingCount: profile.followingCount,
+        postCount: profile.postCount,
+      };
+      await upsertProfile(username, profile.followerCount, profile.followingCount, profile.postCount);
+    } catch (error) {
+      const msg = `Profile scraping failed for @${username}: ${error instanceof Error ? error.message : error}. Analysis cannot proceed without complete profile data.`;
+      if (!session) {
+        session = await createSession(username, prompt.slice(0, 80) || "Reel analysis");
+      }
+      if (prompt) {
+        await addMessage(session.id, "user", prompt);
+      }
+      await addMessage(session.id, "assistant", msg);
+      return NextResponse.json({
+        sessionId: session.id,
+        username,
+        reelsAnalyzed: 0,
+        failedReels: [],
+        error: msg,
+      });
+    }
+
+    if (prompt) {
+      await addMessage(sessionId, "user", prompt);
+    }
     if (!session.title) {
-      await updateSessionTitle(sessionId, prompt.slice(0, 80));
+      await updateSessionTitle(sessionId, prompt.slice(0, 80) || "Reel analysis");
     }
 
     // Always store newly fetched reels (deduped by shortcode)
@@ -179,7 +214,15 @@ export async function POST(request: Request) {
       }
     }
 
-    const result = await runAnalysis(prompt, reelsToAnalyze);
+    // Build user metadata from scraped profile data
+    const userMetadata = {
+      username,
+      followers: profileData.followerCount,
+      following: profileData.followingCount,
+      posts: profileData.postCount,
+    };
+
+    const result = await runAnalysis(prompt, reelsToAnalyze, userMetadata);
 
     for (const uploaded of result.uploadedReels) {
       await updateReelGeminiFile(uploaded.reelId, uploaded.geminiFileUri, uploaded.geminiFileExpiresAt);

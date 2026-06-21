@@ -2,6 +2,7 @@ import type {
   AnalysesUserListResponse,
   AnalysesUserReelsResponse,
   AnalysesReelDetailResponse,
+  AnalysesUserProfileResponse,
 } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -22,6 +23,12 @@ export async function getAnalysisUsers(): Promise<AnalysesUserListResponse> {
 export async function getAnalysisUserReels(username: string): Promise<AnalysesUserReelsResponse> {
   return fetchJson<AnalysesUserReelsResponse>(
     `/api/analyses?mode=user-reels&username=${encodeURIComponent(username)}`,
+  );
+}
+
+export async function getAnalysisUserProfile(username: string): Promise<AnalysesUserProfileResponse> {
+  return fetchJson<AnalysesUserProfileResponse>(
+    `/api/analyses?mode=user-profile&username=${encodeURIComponent(username)}`,
   );
 }
 

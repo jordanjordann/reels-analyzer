@@ -64,6 +64,7 @@ export type AdaptationIdea = {
 export type ReelAnalysis = {
   shortcode: string;
   oneLineDiagnosis: string;
+  scoreJustification?: string;
   scorecard: Scorecard;
   qualityBreakdown: QualityBreakdown;
   creativeBreakdown: CreativeBreakdown;

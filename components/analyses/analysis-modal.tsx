@@ -7,6 +7,8 @@ import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
 import { exportAnalysisToMarkdown, downloadMarkdown } from "@/shared/analysis/export-analysis";
 import { AnalysisResults } from "@/components/analysis-results";
 import { useAnalysisReelDetail, useDeleteAnalysisReel } from "@/api/analyses/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { ANALYSES_KEYS } from "@/api/analyses/hooks";
 
 function formatViews(count: number | null) {
   if (count == null) return null;
@@ -30,10 +32,13 @@ export function AnalysisModal({
   username: string;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data, isFetching, error } = useAnalysisReelDetail(shortcode);
   const deleteMutation = useDeleteAnalysisReel(username);
   const [isClosing, setIsClosing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReAnalyzing, setIsReAnalyzing] = useState(false);
+  const [reAnalyzeError, setReAnalyzeError] = useState<string | null>(null);
 
   const handleClose = useCallback(() => {
     setIsClosing(true);
@@ -42,14 +47,48 @@ export function AnalysisModal({
     }, 150);
   }, [router]);
 
-  const handleReAnalyze = useCallback(() => {
+  const handleReAnalyze = useCallback(async () => {
     const reelUrl = data?.reel?.igUrl ?? null;
-    if (reelUrl) {
-      router.push(`/analyses/${username}?new=true&url=${encodeURIComponent(reelUrl)}`);
-    } else {
-      router.push(`/analyses/${username}?new=true`);
+    if (!reelUrl) return;
+
+    setIsReAnalyzing(true);
+    setReAnalyzeError(null);
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          urls: [reelUrl],
+        }),
+      });
+      const data = (await response.json()) as {
+        sessionId?: string;
+        error?: string;
+        reelsAnalyzed?: number;
+      };
+
+      if (!response.ok || !data.sessionId) {
+        setReAnalyzeError(data.error ?? "Unable to re-analyze.");
+        return;
+      }
+
+      if (data.reelsAnalyzed === 0) {
+        setReAnalyzeError("Found 0 usable reels. URL may be invalid or reel is unavailable.");
+      } else if (data.error) {
+        setReAnalyzeError(data.error);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.userList() });
+        void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.userReels(username) });
+        void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.userProfile(username) });
+        void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.reelDetail(shortcode) });
+      }
+    } catch {
+      setReAnalyzeError("Unable to connect to the analyze endpoint.");
+    } finally {
+      setIsReAnalyzing(false);
     }
-  }, [router, username, data]);
+  }, [data, queryClient, shortcode, username]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -181,14 +220,24 @@ export function AnalysisModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t px-6 py-3">
-          <button
-            type="button"
-            onClick={handleReAnalyze}
-            className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary/80"
-          >
-            <RefreshCwIcon className="size-4" aria-hidden="true" />
-            Re-analyze
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleReAnalyze}
+              disabled={isReAnalyzing}
+              className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary/80 disabled:opacity-50"
+            >
+              {isReAnalyzing ? (
+                <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCwIcon className="size-4" aria-hidden="true" />
+              )}
+              {isReAnalyzing ? "Re-analyzing..." : "Re-analyze"}
+            </button>
+            {reAnalyzeError && (
+              <span className="text-xs text-destructive">{reAnalyzeError}</span>
+            )}
+          </div>
           <button
             type="button"
             onClick={handleDelete}

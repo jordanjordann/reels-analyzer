@@ -19,7 +19,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { Textarea } from "@/components/ui/textarea";
 
 export type AnalysisStage = "idle" | "fetching" | "uploading" | "analyzing";
 
@@ -33,8 +32,6 @@ export const STAGE_LABELS: Record<AnalysisStage, string> = {
 export const PromptForm = function PromptForm({
   urls,
   setUrls,
-  prompt,
-  setPrompt,
   error,
   submitting,
   analysisStage,
@@ -42,8 +39,6 @@ export const PromptForm = function PromptForm({
 }: {
   urls: string[];
   setUrls: (v: string[]) => void;
-  prompt: string;
-  setPrompt: (v: string) => void;
   error: string | null;
   submitting: boolean;
   analysisStage: AnalysisStage;
@@ -54,7 +49,7 @@ export const PromptForm = function PromptForm({
     ? STAGE_LABELS[analysisStage]
     : submitting
       ? "Saving analysis"
-      : "Send prompt";
+      : "Start analysis";
 
   return (
     <form className="enter-rise flex flex-col gap-5" onSubmit={onSubmit}>
@@ -65,30 +60,10 @@ export const PromptForm = function PromptForm({
         </CardHeader>
         <CardContent>
           <FieldGroup>
-            <Field data-invalid={Boolean(error?.includes("URL"))}>
+            <Field data-invalid={Boolean(error)}>
               <FieldLabel>Reel URLs</FieldLabel>
               <UrlChipInput urls={urls} onChange={setUrls} max={10} disabled={isWorking} />
               <FieldDescription>Press Enter to add. Paste multiple URLs to split automatically.</FieldDescription>
-            </Field>
-
-            <Field data-invalid={Boolean(error && !error.includes("URL"))}>
-              <FieldLabel htmlFor="prompt">Analysis prompt</FieldLabel>
-              <Textarea
-                id="prompt"
-                className="min-h-36 resize-none"
-                placeholder="What recurring hook patterns does this creator use?"
-                value={prompt}
-                aria-invalid={Boolean(error && !error.includes("URL"))}
-                disabled={isWorking}
-                onChange={(event) => setPrompt(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
-              />
-              <FieldDescription>Press Enter to submit. Use Shift+Enter for a new line.</FieldDescription>
               <div aria-live="polite">{error ? <FieldError>{error}</FieldError> : null}</div>
             </Field>
           </FieldGroup>

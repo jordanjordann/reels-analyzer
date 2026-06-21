@@ -37,3 +37,14 @@ export type AnalysesUserReelsResponse = {
 export type AnalysesReelDetailResponse = {
   reel: AnalysisReelDetail;
 };
+
+export type AnalysisUserProfile = {
+  followerCount: number | null;
+  followingCount: number | null;
+  postCount: number | null;
+};
+
+export type AnalysesUserProfileResponse = {
+  username: string;
+  profile: AnalysisUserProfile | null;
+};

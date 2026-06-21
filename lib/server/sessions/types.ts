@@ -40,6 +40,9 @@ export type SessionDetail = {
   title: string | null;
   createdAt: string;
   updatedAt: string;
+  followerCount: number | null;
+  followingCount: number | null;
+  postCount: number | null;
   reels: ReelRecord[];
   messages: MessageRecord[];
 };

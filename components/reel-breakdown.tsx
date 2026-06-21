@@ -39,6 +39,16 @@ export function ReelBreakdown({ reel }: { reel: ReelAnalysis }) {
         </span>
       </div>
 
+      {/* Score Justification */}
+      {reel.scoreJustification && (
+        <div className="mb-4 rounded-lg border border-accent/20 bg-accent/5 p-3">
+          <p className="text-xs font-mono uppercase tracking-wider text-accent mb-1">
+            Why This Score
+          </p>
+          <p className="text-sm text-muted-foreground">{reel.scoreJustification}</p>
+        </div>
+      )}
+
       {/* Scorecard */}
       <div className="mb-4 grid grid-cols-5 gap-2 text-center">
         {Object.entries(reel.scorecard).map(([key, val]) => {

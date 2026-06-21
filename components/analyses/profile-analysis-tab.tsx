@@ -480,7 +480,9 @@ export function ProfileAnalysisTab({ username }: { username: string }) {
       },
     }).length > 0;
 
-  if (isFetching && !data?.profile) {
+  const isLoading = isFetching && !data?.profile;
+
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-muted-foreground">
         <UserIcon className="size-10 animate-pulse" aria-hidden="true" />

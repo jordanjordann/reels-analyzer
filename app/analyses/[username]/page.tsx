@@ -4,11 +4,10 @@ import { Suspense, useState } from "react";
 import {
   ArrowLeftIcon,
   LayoutGridIcon,
-  PlusIcon,
   UserIcon,
 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useAnalysisUserReels } from "@/api/analyses/hooks";
+import { useAnalysisUserReels, useAnalysisUserProfile } from "@/api/analyses/hooks";
 import { ReelGrid } from "@/components/analyses/reel-grid";
 import { AnalysisModal } from "@/components/analyses/analysis-modal";
 import { NewAnalysisModal } from "@/components/analyses/new-analysis-modal";
@@ -23,6 +22,12 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+function formatCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return count.toLocaleString();
+}
+
 function UserReelsContent() {
   const params = useParams();
   const router = useRouter();
@@ -35,7 +40,9 @@ function UserReelsContent() {
   const [activeTab, setActiveTab] = useState<TabKey>("reels");
 
   const { data, isFetching } = useAnalysisUserReels(username);
+  const { data: profileData } = useAnalysisUserProfile(username);
   const reels = data?.reels ?? [];
+  const profile = profileData?.profile ?? null;
 
   function handleReelClick(reel: AnalysisReelSummary) {
     router.push(`/analyses/${username}?v=${reel.igShortcode}`);
@@ -43,7 +50,7 @@ function UserReelsContent() {
 
   return (
     <div className="flex min-h-dvh flex-col p-6 lg:p-8">
-      <header className="flex items-center justify-between gap-4">
+      <header className="flex flex-col gap-4 pb-6">
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -52,13 +59,32 @@ function UserReelsContent() {
           >
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
           </button>
-          <div>
-            <h1 className="font-heading text-2xl font-semibold tracking-[-0.04em]">
-              @{username}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {reels.length} reel{reels.length === 1 ? "" : "s"} analyzed
+          <h1 className="font-heading text-2xl font-semibold tracking-[-0.04em]">
+            @{username}
+          </h1>
+        </div>
+        <div className="flex items-center gap-8">
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold">{reels.length}</p>
+            <p className="text-xs text-muted-foreground">reels</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold">
+              {profile?.followerCount != null ? formatCount(profile.followerCount) : "—"}
             </p>
+            <p className="text-xs text-muted-foreground">followers</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold">
+              {profile?.followingCount != null ? formatCount(profile.followingCount) : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">following</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold">
+              {profile?.postCount != null ? formatCount(profile.postCount) : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">posts</p>
           </div>
         </div>
       </header>

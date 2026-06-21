@@ -5,7 +5,6 @@ import { XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { PromptForm, type AnalysisStage } from "@/components/prompt-form";
-import { SESSION_KEYS } from "@/api/sessions/hooks";
 
 export function NewAnalysisModal({
   defaultUsername,
@@ -20,7 +19,6 @@ export function NewAnalysisModal({
     const urlParam = searchParams.get("url");
     return urlParam ? [urlParam] : [];
   });
-  const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
@@ -40,7 +38,7 @@ export function NewAnalysisModal({
     return () => window.removeEventListener("keydown", handleEsc);
   }, [handleClose]);
 
-  const runAnalysis = useCallback(async (cleanUrls: string[], cleanPrompt: string, existingSessionId?: string, confirmBudget?: boolean) => {
+  const runAnalysis = useCallback(async (cleanUrls: string[], confirmBudget?: boolean) => {
     setError(null);
     setSubmitting(true);
     setAnalysisStage("fetching");
@@ -51,8 +49,6 @@ export function NewAnalysisModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           urls: cleanUrls,
-          prompt: cleanPrompt,
-          sessionId: existingSessionId,
           confirmBudget,
         }),
       });
@@ -63,7 +59,7 @@ export function NewAnalysisModal({
       };
 
       if (!response.ok || !data.sessionId) {
-        const errMsg = data.error ?? "Unable to save prompt.";
+        const errMsg = data.error ?? "Unable to start analysis.";
         setError(errMsg);
         return;
       }
@@ -73,7 +69,6 @@ export function NewAnalysisModal({
       } else if (data.error) {
         setError(data.error);
       } else {
-        setPrompt("");
         void queryClient.invalidateQueries({ queryKey: ["analyses", "user-list"] });
         if (defaultUsername) {
           void queryClient.invalidateQueries({ queryKey: ["analyses", "user-reels", defaultUsername] });
@@ -92,19 +87,13 @@ export function NewAnalysisModal({
     event.preventDefault();
 
     const cleanUrls = urls.filter((u) => u.trim());
-    const cleanPrompt = prompt.trim();
 
     if (cleanUrls.length === 0) {
-      setError("Add at least one Instagram reel URL before sending a prompt.");
+      setError("Add at least one Instagram reel URL before starting analysis.");
       return;
     }
 
-    if (!cleanPrompt) {
-      setError("Enter a prompt to analyze.");
-      return;
-    }
-
-    void runAnalysis(cleanUrls, cleanPrompt);
+    void runAnalysis(cleanUrls);
   }
 
   return (
@@ -131,8 +120,6 @@ export function NewAnalysisModal({
           <PromptForm
             urls={urls}
             setUrls={setUrls}
-            prompt={prompt}
-            setPrompt={setPrompt}
             error={error}
             submitting={submitting}
             analysisStage={analysisStage}

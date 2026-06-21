@@ -1,7 +1,7 @@
 import { type BrowserContext, type Page } from "playwright";
 
 import { extractVideoUrl as extractVideoUrlYtDlp } from "./downloader";
-import { MAX_CONCURRENT_REELS } from "./constants";
+import { MAX_CONCURRENT_REELS, IG_BASE } from "./constants";
 
 export interface ReelMetadata {
   url: string;
@@ -13,6 +13,7 @@ export interface ReelMetadata {
   durationSec: number | null;
   thumbnailUrl: string | null;
   videoUrl: string | null;
+  followerCount: number | null;
 }
 
 export interface FailedReel {
@@ -44,6 +45,7 @@ async function extractMetadata(page: Page): Promise<{
   postDate: string | null;
   durationSec: number | null;
   thumbnailUrl: string | null;
+  followerCount: number | null;
 }> {
   const result = {
     username: "",
@@ -52,6 +54,7 @@ async function extractMetadata(page: Page): Promise<{
     postDate: null as string | null,
     durationSec: null as number | null,
     thumbnailUrl: null as string | null,
+    followerCount: null as number | null,
   };
 
   if (page.url().includes("accounts/login")) {
@@ -75,6 +78,7 @@ async function extractMetadata(page: Page): Promise<{
       postDate: null as string | null,
       durationSec: null as number | null,
       thumbnailUrl: null as string | null,
+      followerCount: null as number | null,
     };
 
     const scripts = document.querySelectorAll("script");
@@ -107,6 +111,9 @@ async function extractMetadata(page: Page): Promise<{
                 if (media.display_url) {
                   data.thumbnailUrl = media.display_url;
                 }
+                if (typeof media.owner?.edge_followed_by?.count === "number") {
+                  data.followerCount = media.owner.edge_followed_by.count;
+                }
               }
             }
           }
@@ -125,6 +132,7 @@ async function extractMetadata(page: Page): Promise<{
   result.postDate = result.postDate || jsonData.postDate;
   result.durationSec = result.durationSec || jsonData.durationSec;
   result.thumbnailUrl = result.thumbnailUrl || jsonData.thumbnailUrl;
+  result.followerCount = result.followerCount || jsonData.followerCount;
 
   const metaTags = await page.evaluate(() => {
     const data = {
@@ -379,6 +387,97 @@ async function extractVideoUrl(page: Page, reelUrl: string): Promise<string | nu
   }
 }
 
+export interface ProfileData {
+  username: string;
+  followerCount: number | null;
+  followingCount: number | null;
+  postCount: number | null;
+}
+
+async function extractProfileData(page: Page): Promise<ProfileData> {
+  const result = {
+    username: "",
+    followerCount: null as number | null,
+    followingCount: null as number | null,
+    postCount: null as number | null,
+  };
+
+  const bodyText = await page.evaluate(() => document.body.innerText);
+  if (
+    bodyText.includes("Profile isn't available") ||
+    bodyText.includes("This page isn't available") ||
+    bodyText.includes("Sorry, this page") ||
+    bodyText.includes("No posts yet")
+  ) {
+    throw new Error("Profile not found or account is private.");
+  }
+
+  const ogDesc = await page.evaluate(() => {
+    return document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
+  });
+
+  if (ogDesc) {
+    const followersMatch = ogDesc.match(/([\d,.]+[KMB]?)\s*Followers?/i);
+    const followingMatch = ogDesc.match(/([\d,.]+[KMB]?)\s*Following/i);
+    const postsMatch = ogDesc.match(/([\d,.]+[KMB]?)\s*Posts?/i);
+
+    if (followersMatch) result.followerCount = parseCountString(followersMatch[1]);
+    if (followingMatch) result.followingCount = parseCountString(followingMatch[1]);
+    if (postsMatch) result.postCount = parseCountString(postsMatch[1]);
+  }
+
+  if (result.followerCount == null || result.followingCount == null || result.postCount == null) {
+    const followersMatch = bodyText.match(/([\d,.]+[KMB]?)\s*followers?/i);
+    const followingMatch = bodyText.match(/([\d,.]+[KMB]?)\s*following/i);
+    const postsMatch = bodyText.match(/([\d,.]+[KMB]?)\s*posts?/i);
+
+    if (followersMatch && result.followerCount == null) result.followerCount = parseCountString(followersMatch[1]);
+    if (followingMatch && result.followingCount == null) result.followingCount = parseCountString(followingMatch[1]);
+    if (postsMatch && result.postCount == null) result.postCount = parseCountString(postsMatch[1]);
+  }
+
+  const metaUsername = await page.evaluate(() => {
+    return document.querySelector('meta[property="profile:username"]')?.getAttribute("content") || "";
+  });
+  result.username = metaUsername;
+
+  if (!result.username) {
+    const urlMatch = page.url().match(/instagram\.com\/([^/?#]+)/);
+    if (urlMatch) result.username = urlMatch[1];
+  }
+
+  return result;
+}
+
+function parseCountString(str: string): number {
+  const cleaned = str.replace(/,/g, "");
+  const num = parseFloat(cleaned);
+  const suffix = cleaned.slice(-1).toUpperCase();
+  if (suffix === "K") return Math.round(num * 1000);
+  if (suffix === "M") return Math.round(num * 1000000);
+  if (suffix === "B") return Math.round(num * 1000000000);
+  return num;
+}
+
+export async function fetchUserProfile(username: string, context: BrowserContext): Promise<ProfileData> {
+  const page = await context.newPage();
+  try {
+    const profileUrl = `${IG_BASE}/${username}`;
+    await page.goto(profileUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(2000);
+
+    const profileData = await extractProfileData(page);
+
+    if (!profileData.username) {
+      throw new Error("Could not extract username from profile page.");
+    }
+
+    return profileData;
+  } finally {
+    await page.close();
+  }
+}
+
 export async function visitReelPage(url: string, context: BrowserContext): Promise<ReelMetadata> {
   const page = await context.newPage();
   try {
@@ -398,6 +497,7 @@ export async function visitReelPage(url: string, context: BrowserContext): Promi
       durationSec: metadata.durationSec,
       thumbnailUrl: metadata.thumbnailUrl,
       videoUrl,
+      followerCount: metadata.followerCount,
     };
   } finally {
     await page.close();

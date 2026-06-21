@@ -65,6 +65,21 @@ async function getUserReels(username: string) {
   }));
 }
 
+async function getUserProfile(username: string) {
+  const result = await db.execute({
+    sql: "SELECT follower_count, following_count, post_count FROM profiles WHERE username = ? LIMIT 1",
+    args: [username.toLowerCase().replace(/^@+/, "")],
+  });
+
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  return {
+    followerCount: typeof row.follower_count === "number" ? row.follower_count : null,
+    followingCount: typeof row.following_count === "number" ? row.following_count : null,
+    postCount: typeof row.post_count === "number" ? row.post_count : null,
+  };
+}
+
 async function getReelDetail(shortcode: string) {
   const reelResult = await db.execute({
     sql: `
@@ -144,6 +159,15 @@ export async function GET(request: Request) {
     }
     const reels = await getUserReels(username);
     return NextResponse.json({ username, reels });
+  }
+
+  if (mode === "user-profile") {
+    const username = searchParams.get("username");
+    if (!username) {
+      return NextResponse.json({ error: "Missing username parameter." }, { status: 400 });
+    }
+    const profile = await getUserProfile(username);
+    return NextResponse.json({ username, profile });
   }
 
   if (mode === "reel-detail") {

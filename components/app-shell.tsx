@@ -83,7 +83,7 @@ const SessionRail = function SessionRail({
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium">No saved conversations yet</p>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Submit a username and prompt to create the first persistent session.
+                  Submit reel URLs to create the first persistent session.
                 </p>
               </div>
             </div>
@@ -290,7 +290,7 @@ const ConversationPanel = function ConversationPanel({
                 <div>
                   <h3 className="font-heading text-xl font-semibold tracking-[-0.04em]">Ready for analysis</h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Paste reel URLs and a prompt. Reels will be fetched and analyzed by Gemini 2.5 Flash.
+                    Paste reel URLs. Reels will be fetched and analyzed by Gemini 2.5 Flash.
                   </p>
                 </div>
               </div>
@@ -307,14 +307,13 @@ export function AppShell() {
   const [unlocked, setUnlocked] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [urls, setUrls] = useState<string[]>([]);
-  const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
   const [budgetWarning, setBudgetWarning] = useState<BudgetWarningData | null>(null);
   const [failedReels, setFailedReels] = useState<FailedReelData[]>([]);
-  const [pendingConfirm, setPendingConfirm] = useState<{ urls: string[]; prompt: string; sessionId: string } | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{ urls: string[]; sessionId: string } | null>(null);
 
   const sessionsQuery = useSessions();
   const sessionQuery = useSession(activeSessionId);
@@ -349,7 +348,6 @@ export function AppShell() {
   function startNewSession() {
     setActiveSessionId(null);
     setUrls([]);
-    setPrompt("");
     setError(null);
     setLastError(null);
     setBudgetWarning(null);
@@ -363,7 +361,7 @@ export function AppShell() {
 
   function handleBudgetContinue() {
     if (pendingConfirm) {
-      void runAnalysis(pendingConfirm.urls, pendingConfirm.prompt, pendingConfirm.sessionId, true);
+      void runAnalysis(pendingConfirm.urls, pendingConfirm.sessionId, true);
       setBudgetWarning(null);
       setPendingConfirm(null);
     }
@@ -379,13 +377,10 @@ export function AppShell() {
   function handleRetryFailed(failedUrls: string[]) {
     setUrls(failedUrls);
     setFailedReels([]);
-    const userMessage = activeSession?.messages.find((m) => m.role === "user");
-    if (userMessage) {
-      void runAnalysis(failedUrls, userMessage.content);
-    }
+    void runAnalysis(failedUrls);
   }
 
-  const runAnalysis = useCallback(async (cleanUrls: string[], cleanPrompt: string, existingSessionId?: string, confirmBudget?: boolean) => {
+  const runAnalysis = useCallback(async (cleanUrls: string[], existingSessionId?: string, confirmBudget?: boolean) => {
     setError(null);
     setLastError(null);
     setSubmitting(true);
@@ -399,7 +394,6 @@ export function AppShell() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           urls: cleanUrls,
-          prompt: cleanPrompt,
           sessionId: existingSessionId ?? activeSession?.id ?? undefined,
           confirmBudget,
         }),
@@ -414,7 +408,7 @@ export function AppShell() {
       };
 
       if (!response.ok || !data.sessionId) {
-        const errMsg = data.error ?? "Unable to save prompt.";
+        const errMsg = data.error ?? "Unable to start analysis.";
         setError(errMsg);
         setLastError(errMsg);
         return;
@@ -423,7 +417,7 @@ export function AppShell() {
       // Handle budget warning
       if (data.budgetWarning) {
         setBudgetWarning(data.budgetWarning);
-        setPendingConfirm({ urls: cleanUrls, prompt: cleanPrompt, sessionId: data.sessionId });
+        setPendingConfirm({ urls: cleanUrls, sessionId: data.sessionId });
         if (data.failedReels && data.failedReels.length > 0) {
           setFailedReels(data.failedReels);
         }
@@ -443,7 +437,6 @@ export function AppShell() {
         setLastError(data.error);
       }
 
-      setPrompt("");
       void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.lists() });
       void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.detail(data.sessionId) });
       void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.userList() });
@@ -464,27 +457,19 @@ export function AppShell() {
     event.preventDefault();
 
     const cleanUrls = urls.filter((u) => u.trim());
-    const cleanPrompt = prompt.trim();
 
     if (cleanUrls.length === 0) {
-      setError("Add at least one Instagram reel URL before sending a prompt.");
+      setError("Add at least one Instagram reel URL before starting analysis.");
       return;
     }
 
-    if (!cleanPrompt) {
-      setError("Enter a prompt to analyze.");
-      return;
-    }
-
-    void runAnalysis(cleanUrls, cleanPrompt);
+    void runAnalysis(cleanUrls);
   }
 
   const handleRetry = useCallback(() => {
     if (!activeSession) return;
-    const userMessage = activeSession.messages.find((m) => m.role === "user");
-    if (!userMessage) return;
     const retryUrls = urls.length > 0 ? urls : activeSession.reels.map((r) => r.igUrl).filter(Boolean);
-    void runAnalysis(retryUrls, userMessage.content);
+    void runAnalysis(retryUrls);
   }, [activeSession, runAnalysis, urls]);
 
   if (!unlocked) {
@@ -577,8 +562,6 @@ export function AppShell() {
             <PromptForm
               urls={urls}
               setUrls={setUrls}
-              prompt={prompt}
-              setPrompt={setPrompt}
               error={error}
               submitting={submitting}
               analysisStage={analysisStage}
