@@ -36,6 +36,7 @@ import { exportAnalysisToMarkdown, downloadMarkdown } from "@/shared/analysis/ex
 import { cn } from "@/shared/utils";
 import { useDeleteSession, useSession, useSessions, SESSION_KEYS } from "@/api/sessions/hooks";
 import { useQueryClient } from "@tanstack/react-query";
+import { ANALYSES_KEYS } from "@/api/analyses/hooks";
 import type { SessionDetail, SessionListItem } from "@/api/sessions/api";
 import { PromptForm, type AnalysisStage, STAGE_LABELS } from "@/components/prompt-form";
 
@@ -445,6 +446,7 @@ export function AppShell() {
       setPrompt("");
       void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.lists() });
       void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.detail(data.sessionId) });
+      void queryClient.invalidateQueries({ queryKey: ANALYSES_KEYS.userList() });
       setActiveSessionId(data.sessionId);
     } catch {
       const errMsg = "Unable to connect to the analyze endpoint.";

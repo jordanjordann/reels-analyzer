@@ -202,6 +202,14 @@ export const SCORE_GROUPS = {
   },
 } as const;
 
+export const SCORE_DESCRIPTIONS: Record<string, string> = {
+  performanceScore: "How well the content performed relative to account size and baseline (views, engagement, comment rate).",
+  creativeScore: "The creative mechanics that made the content work (hook, narrative, retention, emotional trigger, execution).",
+  replicationScore: "Whether the viral formula can be adapted to another creator or brand (transferability, feasibility, risk).",
+  viralIntelligenceScore: "Composite score: 40% performance + 35% creative + 25% replication. Overall viral potential rating.",
+  viralQualityScore: "Weighted sum of 10 quality dimensions (hook strength, retention, shareability, audience fit, etc.).",
+};
+
 export const QUANTITATIVE_METRICS = [
   {
     id: "views",

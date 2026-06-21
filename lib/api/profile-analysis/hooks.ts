@@ -22,6 +22,7 @@ export function useProfileAnalysis(username: string | null) {
 export function useRefreshProfileAnalysis(username: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: [...PROFILE_ANALYSIS_KEYS.all, "refresh", username],
     mutationFn: () => refreshProfileAnalysis(username),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PROFILE_ANALYSIS_KEYS.detail(username) });

@@ -74,7 +74,7 @@ export function NewAnalysisModal({
         setError(data.error);
       } else {
         setPrompt("");
-        void queryClient.invalidateQueries({ queryKey: SESSION_KEYS.lists() });
+        void queryClient.invalidateQueries({ queryKey: ["analyses", "user-list"] });
         if (defaultUsername) {
           void queryClient.invalidateQueries({ queryKey: ["analyses", "user-reels", defaultUsername] });
         }

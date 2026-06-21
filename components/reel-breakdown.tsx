@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReelAnalysis } from "@/shared/analysis/types";
-import { DIMENSION_LABELS } from "@/shared/analysis/constants";
+import { DIMENSION_LABELS, SCORE_DESCRIPTIONS } from "@/shared/analysis/constants";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { cn } from "@/shared/utils";
 
@@ -41,14 +41,22 @@ export function ReelBreakdown({ reel }: { reel: ReelAnalysis }) {
 
       {/* Scorecard */}
       <div className="mb-4 grid grid-cols-5 gap-2 text-center">
-        {Object.entries(reel.scorecard).map(([key, val]) => (
-          <div key={key} className="rounded-lg bg-muted/30 p-2">
-            <p className="text-[10px] font-mono uppercase text-muted-foreground">
-              {key.replace(/([A-Z])/g, " $1").trim().slice(0, 12)}
-            </p>
-            <p className="text-lg font-mono font-bold">{val}</p>
-          </div>
-        ))}
+        {Object.entries(reel.scorecard).map(([key, val]) => {
+          const desc = SCORE_DESCRIPTIONS[key];
+          return (
+            <div key={key} className="group relative rounded-lg bg-muted/30 p-2">
+              <p className="text-[10px] font-mono uppercase text-muted-foreground">
+                {key.replace(/([A-Z])/g, " $1").trim().slice(0, 12)}
+              </p>
+              <p className="text-lg font-mono font-bold">{val}</p>
+              {desc && (
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-48 -translate-x-1/2 rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md group-hover:block">
+                  {desc}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Quality Breakdown */}
