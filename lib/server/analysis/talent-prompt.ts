@@ -56,11 +56,17 @@ You MUST return your analysis as a JSON object with this exact structure:
   "growthSuggestions": ["specific experiment or strategy to try next"],
   "personalStyle": {
     "speakingStyle": "pace, energy, delivery style, formality level",
-    "interactionStyle": "how they engage audience (questions, humor, authority, etc.)",
-    "visualStyle": "editing patterns, text overlay usage, camera framing, aesthetic consistency",
-    "contentStructure": "how they organize videos (listicle, story arc, tutorial, etc.)",
-    "toneAndVibe": "overall personality (motivational, educational, entertaining, etc.)",
-    "signatureElements": "recurring catchphrases, visual motifs, editing quirks, intro/outro patterns"
+    "speechPatterns": "recurring catchphrases, filler words, sentence structure patterns, rhetorical devices, favorite transitions",
+    "vocalQualities": "tone of voice, pitch variation, volume dynamics, accent, clarity, breath control",
+    "mannerisms": "hand gestures, facial expressions, body language, head movements, walking patterns, recurring physical tics",
+    "emotionalRange": "what emotions they display naturally (passion, humor, vulnerability, anger) vs forced, authenticity level",
+    "cameraPresence": "eye contact habits, distance from camera, movement within frame, comfort level on camera, how they open/close videos",
+    "interactionStyle": "how they engage audience (questions, humor, authority, storytelling, debate, teaching), community tone",
+    "visualStyle": "editing patterns, text overlay usage, camera framing, lighting choices, color palette, b-roll usage, aesthetic consistency",
+    "contentStructure": "how they organize videos (listicle, story arc, tutorial, rant, review, day-in-life, challenge, reaction)",
+    "toneAndVibe": "overall personality archetype (motivational, educational, entertaining, raw/authentic, polished, funny, serious, warm, intense)",
+    "signatureElements": "recurring catchphrases, visual motifs, editing quirks, intro/outro patterns, branded transitions, unique format they own",
+    "behavioralConsistency": "are they the same person across every video or do they switch personas? what changes and what stays constant?"
   }
 }
 
@@ -74,7 +80,7 @@ Rules:
 - topReels should list the 3 highest-scoring reels
 - bottomReels should list the 3 lowest-scoring reels
 - growthSuggestions should be specific, actionable, and based on the weaknesses identified
-- personalStyle should be detailed and descriptive — this is the most important section for talent scouting
+- personalStyle should be the most detailed section — this is a talent scouting report, not a viral analysis. Describe their on-camera personality as if you're briefing a brand manager who's never seen them. Every sub-field must be a substantive paragraph with concrete observed examples, not generic filler.
 
 Return ONLY the JSON object. Do not include markdown code fences, explanations, or any text outside the JSON. All text fields must be in Bahasa Indonesia.`;
 }
