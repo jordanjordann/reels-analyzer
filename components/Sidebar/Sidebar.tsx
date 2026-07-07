@@ -1,6 +1,6 @@
 "use client";
 
-import { FilmIcon, LayoutGridIcon } from "lucide-react";
+import { FilmIcon, LayoutGridIcon, UserPlusIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/shared/utils";
@@ -30,6 +30,16 @@ export function Sidebar({ children }: SidebarProps) {
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Analysis
           </p>
+          <Link
+            href="/talents"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-sidebar-accent",
+              pathname?.startsWith("/talents") && "bg-sidebar-accent text-sidebar-foreground",
+            )}
+          >
+            <UserPlusIcon className="size-4 text-accent" aria-hidden="true" />
+            Talents
+          </Link>
           <Link
             href="/profile"
             className={cn(
