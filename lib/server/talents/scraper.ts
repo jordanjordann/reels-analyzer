@@ -1,6 +1,7 @@
 import { type BrowserContext, type Page } from "playwright";
 
-import { ReelMetadata, visitReelPage } from "@/server/analysis/reel-fetcher";
+import type { ReelMetadata } from "@/server/analysis/reel-fetcher";
+import { visitReelPage } from "@/server/analysis/reel-fetcher";
 import { IG_BASE, MAX_CONCURRENT_REELS } from "@/server/analysis/constants";
 
 async function extractReelShortcodes(page: Page): Promise<string[]> {

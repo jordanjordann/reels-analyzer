@@ -8,22 +8,6 @@ import type { ProfileAnalysis } from "@/analysis/profile-types";
 
 export const runtime = "nodejs";
 
-type TalentRow = {
-  id: string;
-  instagram_username: string;
-  name: string;
-  gender: string;
-  notes: string;
-  overall_score: number | null;
-  analysis_content: string | null;
-  analysis_raw_gemini: string | null;
-  analysis_user_prompt: string | null;
-  analysis_reel_count: number;
-  last_analyzed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 function rowToDetail(row: Record<string, unknown>) {
   const analysisContent = typeof row.analysis_content === "string" ? row.analysis_content : null;
   const parsedAnalysis = analysisContent ? parseProfileAnalysis(analysisContent) : null;
