@@ -5,3 +5,4 @@ export * from "./reel-fetcher";
 export * from "./downloader";
 export * from "./gemini";
 export * from "./prompt-router";
+export * from "./prompts";

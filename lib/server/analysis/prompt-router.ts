@@ -1,5 +1,5 @@
 import { uploadReelVideo, analyzeReels } from "./gemini";
-import { buildPerReelSystemInstruction, buildPerReelUserPrompt, buildPerReelMetadataOnlyPrompt } from "@/shared/analysis/analysis-rubric";
+import { buildPerReelSystemInstruction, buildPerReelUserPrompt, buildPerReelMetadataOnlyPrompt } from "./prompts";
 import { MAX_CONCURRENT_REELS } from "./constants";
 import type { ReelRecord } from "@/server/sessions/types";
 import type { AnalysisResult, PerReelAnalysisResult, UserProfileMetadata } from "./types";

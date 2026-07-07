@@ -22,7 +22,8 @@
       "@/*": ["./*"],
       "@/api/*": ["./lib/api/*"],
       "@/server/*": ["./lib/server/*"],
-      "@/shared/*": ["./lib/shared/*"]
+      "@/shared/*": ["./lib/shared/*"],
+    "@/analysis/*": ["./lib/analysis/*"]
     }
   },
   "include": [

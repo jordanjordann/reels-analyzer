@@ -168,17 +168,59 @@ export async function upsertProfile(
   followerCount: number | null,
   followingCount: number | null,
   postCount: number | null,
+  tracking?: { reelCount?: number; sessionCount?: number; lastAnalyzedAt?: string },
 ) {
   const normalized = normalizeUsername(username);
   await db.execute({
-    sql: `INSERT INTO profiles (username, follower_count, following_count, post_count)
-          VALUES (?, ?, ?, ?)
+    sql: `INSERT INTO profiles (username, follower_count, following_count, post_count, reel_count, session_count, last_analyzed_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(username) DO UPDATE SET
             follower_count = excluded.follower_count,
             following_count = excluded.following_count,
             post_count = excluded.post_count,
+            reel_count = COALESCE(excluded.reel_count, profiles.reel_count),
+            session_count = COALESCE(excluded.session_count, profiles.session_count),
+            last_analyzed_at = COALESCE(excluded.last_analyzed_at, profiles.last_analyzed_at),
             updated_at = datetime('now')`,
-    args: [normalized, followerCount, followingCount, postCount],
+    args: [
+      normalized,
+      followerCount,
+      followingCount,
+      postCount,
+      tracking?.reelCount ?? null,
+      tracking?.sessionCount ?? null,
+      tracking?.lastAnalyzedAt ?? null,
+    ],
+  });
+}
+
+export async function incrementProfileReelCount(username: string, count: number) {
+  const normalized = normalizeUsername(username);
+  await db.execute({
+    sql: `UPDATE profiles SET reel_count = reel_count + ?, last_analyzed_at = datetime('now'), updated_at = datetime('now') WHERE username = ?`,
+    args: [count, normalized],
+  });
+}
+
+export async function decrementProfileReelCount(username: string, count: number = 1) {
+  const normalized = normalizeUsername(username);
+  await db.execute({
+    sql: `UPDATE profiles SET reel_count = MAX(0, reel_count - ?), updated_at = datetime('now') WHERE username = ?`,
+    args: [count, normalized],
+  });
+}
+
+export async function syncProfileTracking(username: string) {
+  const normalized = normalizeUsername(username);
+  await db.execute({
+    sql: `UPDATE profiles
+          SET
+            reel_count = (SELECT COUNT(DISTINCT r.id) FROM reels r WHERE r.username = ?),
+            session_count = (SELECT COUNT(DISTINCT r.session_id) FROM reels r WHERE r.username = ?),
+            last_analyzed_at = (SELECT MAX(r.created_at) FROM reels r WHERE r.username = ?),
+            updated_at = datetime('now')
+          WHERE username = ?`,
+    args: [normalized, normalized, normalized, normalized],
   });
 }
 
@@ -211,10 +253,6 @@ export function validateUsername(username: unknown): username is string {
   }
 
   return /^[a-zA-Z0-9._]{1,30}$/.test(normalizeUsername(username));
-}
-
-export function validatePrompt(prompt: unknown): prompt is string {
-  return typeof prompt === "string" && prompt.trim().length > 0 && prompt.trim().length <= 4000;
 }
 
 export async function storeReels(sessionId: string, username: string, scraped: ScrapedReel[]) {

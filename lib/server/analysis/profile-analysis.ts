@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import { db } from "@/shared/db";
-import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
-import { parseProfileAnalysis } from "@/shared/analysis/profile-types";
-import type { ProfileAnalysis } from "@/shared/analysis/profile-types";
+import { parseStructuredAnalysis } from "@/analysis/analysis-parser";
+import { parseProfileAnalysis } from "@/analysis/profile-types";
+import type { ProfileAnalysis } from "@/analysis/profile-types";
 import { MAX_RETRIES, BASE_DELAY_MS } from "./constants";
 
 function isRetryableError(error: unknown): boolean {

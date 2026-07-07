@@ -1,10 +1,3 @@
-export type AnalysisUserSummary = {
-  username: string;
-  reelCount: number;
-  sessionCount: number;
-  lastAnalyzedAt: string;
-};
-
 export type AnalysisReelSummary = {
   id: string;
   sessionId: string;
@@ -25,10 +18,6 @@ export type AnalysisReelDetail = AnalysisReelSummary & {
   userPrompt: string | null;
 };
 
-export type AnalysesUserListResponse = {
-  users: AnalysisUserSummary[];
-};
-
 export type AnalysesUserReelsResponse = {
   username: string;
   reels: AnalysisReelSummary[];
@@ -36,15 +25,4 @@ export type AnalysesUserReelsResponse = {
 
 export type AnalysesReelDetailResponse = {
   reel: AnalysisReelDetail;
-};
-
-export type AnalysisUserProfile = {
-  followerCount: number | null;
-  followingCount: number | null;
-  postCount: number | null;
-};
-
-export type AnalysesUserProfileResponse = {
-  username: string;
-  profile: AnalysisUserProfile | null;
 };

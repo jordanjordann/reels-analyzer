@@ -10,12 +10,13 @@ import {
   getSessionByUsername,
   normalizeUsername,
   storeReels,
+  syncProfileTracking,
   updateReelGeminiFile,
   updateSessionTitle,
   upsertProfile,
   storeAnalysis,
 } from "@/server/sessions";
-import { parseStructuredAnalysis } from "@/shared/analysis/analysis-parser";
+import { parseStructuredAnalysis } from "@/analysis/analysis-parser";
 import type { ScrapedReel } from "@/server/analysis/types";
 import { runAnalysis } from "@/server/analysis/prompt-router";
 import { generateProfileAnalysis } from "@/server/analysis/profile-analysis";
@@ -164,6 +165,8 @@ export async function POST(request: Request) {
       }));
 
       await storeReels(sessionId, username, reelsToStore);
+
+      await syncProfileTracking(username);
 
       const loaded = await getSession(sessionId);
       if (!loaded) {
