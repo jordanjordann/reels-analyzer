@@ -1,12 +1,20 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { ArrowLeftIcon, RefreshCwIcon, Trash2Icon, UserIcon } from "lucide-react";
+import { ArrowLeftIcon, FileTextIcon, RefreshCwIcon, Trash2Icon, UserIcon } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useTalentDetail, useRefreshTalentAnalysis, useDeleteTalent } from "@/api/talents/hooks";
 import { TalentAnalysisSection } from "./components/sections/TalentAnalysisSection";
+import { ContentGeneratorSection } from "./components/sections/ContentGeneratorSection";
 import { cn } from "@/shared/utils";
 import { scoreColor } from "../helpers";
+
+const TABS = [
+  { key: "analysis", icon: UserIcon, label: "Analysis" },
+  { key: "content", icon: FileTextIcon, label: "Content Generator" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
 
 function formatCount(count: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
@@ -34,6 +42,7 @@ function TalentDetailContent() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("analysis");
 
   const { data, isFetching } = useTalentDetail(id);
   const { mutate: refreshAnalysis } = useRefreshTalentAnalysis(id);
@@ -155,8 +164,30 @@ function TalentDetailContent() {
         </div>
       </header>
 
-      <div className="flex-1">
-        <TalentAnalysisSection talentId={id} />
+      {/* Tabs */}
+      <div className="flex items-center gap-6 border-b border-border">
+        {TABS.map(({ key, icon: Icon, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={cn(
+              "flex items-center gap-2 border-b-2 px-1 pb-3 pt-2 text-xs font-semibold uppercase tracking-widest transition-colors",
+              activeTab === key
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-4" aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="mt-6 flex-1 overflow-y-auto">
+        {activeTab === "analysis" && <TalentAnalysisSection talentId={id} />}
+        {activeTab === "content" && <ContentGeneratorSection talentId={id} />}
       </div>
     </div>
   );
