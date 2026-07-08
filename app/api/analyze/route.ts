@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAuthenticated } from "@/server/auth";
 import { initBrowser, loadOrCreateContext, closeBrowser } from "@/server/analysis/ig-session";
-import { fetchAllReels, fetchUserProfile } from "@/server/analysis/reel-fetcher";
+import { fetchAllMedia, fetchUserProfile } from "@/server/analysis/reel-fetcher";
 import {
   addMessage,
   createSession,
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   try {
     context = await loadOrCreateContext(browser);
 
-    const { success, failed } = await fetchAllReels(urls, context);
+    const { success, failed } = await fetchAllMedia(urls, context);
 
     if (success.length === 0) {
       const errorDetails = failed

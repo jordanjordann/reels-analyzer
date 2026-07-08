@@ -1,8 +1,8 @@
 import { uploadReelVideo, analyzeReels } from "./gemini";
-import { buildPerReelSystemInstruction, buildPerReelUserPrompt, buildPerReelMetadataOnlyPrompt } from "./prompts";
+import { buildPerMediaSystemInstruction, buildPerMediaUserPrompt, buildPerMediaMetadataOnlyPrompt } from "./prompts";
 import { MAX_CONCURRENT_REELS } from "./constants";
 import type { ReelRecord } from "@/server/sessions/types";
-import type { AnalysisResult, PerReelAnalysisResult, UserProfileMetadata } from "./types";
+import type { AnalysisResult, PerMediaAnalysisResult, UserProfileMetadata } from "./types";
 
 class ConcurrencyLimiter {
   private running = 0;
@@ -37,13 +37,14 @@ async function uploadReelWithFallback(
   reel: ReelRecord,
   limiter: ConcurrencyLimiter,
 ): Promise<{ fileUri: string | null; fileExpiresAt: string | null }> {
+  if (reel.mediaType !== "reel" || !reel.videoUrl) {
+    return { fileUri: null, fileExpiresAt: null };
+  }
+  const videoUrl: string = reel.videoUrl;
   return runWithLimiter(limiter, async () => {
-    if (!reel.videoUrl) {
-      return { fileUri: null, fileExpiresAt: null };
-    }
-    const uploadResult = await uploadReelVideo(reel.videoUrl);
+    const uploadResult = await uploadReelVideo(videoUrl);
     if (!uploadResult) {
-      console.warn(`Failed to upload video for reel ${reel.igShortcode}`);
+      console.warn(`Failed to upload video for post ${reel.igShortcode}`);
     }
     return {
       fileUri: uploadResult?.fileUri ?? null,
@@ -52,7 +53,7 @@ async function uploadReelWithFallback(
   });
 }
 
-async function analyzeReel(
+async function analyzeMedia(
   reel: ReelRecord,
   prompt: string,
   fileUri: string | null,
@@ -60,53 +61,53 @@ async function analyzeReel(
   userMetadata: UserProfileMetadata | null,
 ): Promise<{ analysis: string; rawGemini: string; usedMetadataOnly: boolean }> {
   return runWithLimiter(limiter, async () => {
-    const systemInstruction = buildPerReelSystemInstruction();
+    const systemInstruction = buildPerMediaSystemInstruction();
 
     if (fileUri) {
-      const userPrompt = buildPerReelUserPrompt(prompt, reel, userMetadata);
+      const userPrompt = buildPerMediaUserPrompt(prompt, reel, userMetadata);
       const geminiResult = await analyzeReels([fileUri], systemInstruction, userPrompt);
       return { analysis: geminiResult.content, rawGemini: geminiResult.rawGemini, usedMetadataOnly: false };
     }
 
     const hasMetadata = reel.caption || reel.viewCount || reel.postDate || reel.durationSec;
     if (hasMetadata) {
-      console.log(`Falling back to metadata-only analysis for reel ${reel.igShortcode}`);
-      const userPrompt = buildPerReelMetadataOnlyPrompt(prompt, reel, userMetadata);
+      console.log(`Falling back to metadata-only analysis for post ${reel.igShortcode}`);
+      const userPrompt = buildPerMediaMetadataOnlyPrompt(prompt, reel, userMetadata);
       const geminiResult = await analyzeReels([], systemInstruction, userPrompt);
       return { analysis: geminiResult.content, rawGemini: geminiResult.rawGemini, usedMetadataOnly: true };
     }
 
-    throw new Error(`No video and no metadata for reel ${reel.igShortcode}`);
+    throw new Error(`No video and no metadata for post ${reel.igShortcode}`);
   });
 }
 
-export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[], userMetadata: UserProfileMetadata | null): Promise<PerReelAnalysisResult[]> {
+export async function runPerMediaAnalysis(prompt: string, reels: ReelRecord[], userMetadata: UserProfileMetadata | null): Promise<PerMediaAnalysisResult[]> {
   const maxReels = parseInt(process.env.MAX_REELS_PER_ACCOUNT ?? "10", 10);
   const reelsToAnalyze = reels.slice(0, maxReels);
 
-  console.log(`Per-reel analysis: ${reelsToAnalyze.length} reels total (concurrency: ${MAX_CONCURRENT_REELS})`);
+  console.log(`Per-post analysis: ${reelsToAnalyze.length} posts total (concurrency: ${MAX_CONCURRENT_REELS})`);
 
   const uploadLimiter = new ConcurrencyLimiter(MAX_CONCURRENT_REELS);
   const analysisLimiter = new ConcurrencyLimiter(MAX_CONCURRENT_REELS);
 
-  // Phase 1: Upload all videos in parallel
+  // Phase 1: Upload all videos in parallel (skipped for non-reels)
   const uploadResults = await Promise.all(
     reelsToAnalyze.map((reel) => uploadReelWithFallback(reel, uploadLimiter)),
   );
 
   // Phase 2: Run all Gemini analyses in parallel
   const analysisResults = await Promise.allSettled(
-    reelsToAnalyze.map((reel, i) => analyzeReel(reel, prompt, uploadResults[i].fileUri, analysisLimiter, userMetadata)),
+    reelsToAnalyze.map((reel, i) => analyzeMedia(reel, prompt, uploadResults[i].fileUri, analysisLimiter, userMetadata)),
   );
 
   // Build results, skipping failed analyses
-  const results: PerReelAnalysisResult[] = [];
+  const results: PerMediaAnalysisResult[] = [];
   for (let i = 0; i < reelsToAnalyze.length; i++) {
     const reel = reelsToAnalyze[i];
     const analysisResult = analysisResults[i];
 
     if (analysisResult.status === "rejected") {
-      console.warn(`Skipping reel ${reel.igShortcode}: ${analysisResult.reason instanceof Error ? analysisResult.reason.message : String(analysisResult.reason)}`);
+      console.warn(`Skipping post ${reel.igShortcode}: ${analysisResult.reason instanceof Error ? analysisResult.reason.message : String(analysisResult.reason)}`);
       continue;
     }
 
@@ -123,12 +124,12 @@ export async function runPerReelAnalysis(prompt: string, reels: ReelRecord[], us
     });
   }
 
-  console.log(`Per-reel analysis complete: ${results.length} of ${reelsToAnalyze.length} reels analyzed`);
+  console.log(`Per-post analysis complete: ${results.length} of ${reelsToAnalyze.length} posts analyzed`);
   return results;
 }
 
 export async function runAnalysis(prompt: string, reels: ReelRecord[], userMetadata: UserProfileMetadata | null): Promise<AnalysisResult> {
-  const perReelResults = await runPerReelAnalysis(prompt, reels, userMetadata);
+  const perReelResults = await runPerMediaAnalysis(prompt, reels, userMetadata);
 
   const uploadedReels = perReelResults.map((r) => ({
     reelId: r.reelId,

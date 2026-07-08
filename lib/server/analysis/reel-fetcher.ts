@@ -111,6 +111,8 @@ async function extractMetadata(page: Page): Promise<{
                 }
                 if (typeof media.video_view_count === "number") {
                   data.viewCount = media.video_view_count;
+                } else if (typeof media.edge_media_preview_like?.count === "number") {
+                  data.viewCount = media.edge_media_preview_like.count;
                 }
                 if (typeof media.taken_at_timestamp === "number") {
                   data.postDate = new Date(media.taken_at_timestamp * 1000).toISOString();
@@ -172,7 +174,7 @@ async function extractMetadata(page: Page): Promise<{
     if (!data.username) {
       const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute("content");
       if (ogUrl) {
-        const match = ogUrl.match(/instagram\.com\/([^/]+)\/reel\//);
+        const match = ogUrl.match(/instagram\.com\/([^/]+)\/(?:reel|p)\//);
         if (match) data.username = match[1];
       }
     }
@@ -181,7 +183,7 @@ async function extractMetadata(page: Page): Promise<{
     if (!data.username) {
       const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute("href");
       if (canonical) {
-        const match = canonical.match(/instagram\.com\/([^/]+)\/reel\//);
+        const match = canonical.match(/instagram\.com\/([^/]+)\/(?:reel|p)\//);
         if (match) data.username = match[1];
       }
     }
@@ -518,7 +520,7 @@ export async function visitReelPage(url: string, context: BrowserContext): Promi
   }
 }
 
-export async function fetchAllReels(
+export async function fetchAllMedia(
   urls: string[],
   context: BrowserContext,
 ): Promise<{ success: MediaMetadata[]; failed: FailedReel[] }> {

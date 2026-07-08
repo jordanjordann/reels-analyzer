@@ -2,7 +2,7 @@ import type { ReelRecord } from "@/server/sessions/types";
 import type { UserProfileMetadata } from "@/server/analysis/types";
 import { VIRAL_QUALITY_DIMENSIONS, SCORE_GROUPS, RED_FLAGS, NARRATIVE_FORMULAS } from "@/analysis/constants";
 
-export function buildPerReelSystemInstruction(): string {
+export function buildPerMediaSystemInstruction(): string {
   const dimensionsDesc = VIRAL_QUALITY_DIMENSIONS.map(
     (d) => `- ${d.name} (weight ${d.weight}%): Evaluate ${d.whatToEvaluate.join(", ")}`
   ).join("\n");
@@ -15,14 +15,14 @@ export function buildPerReelSystemInstruction(): string {
     (r) => `- ${r.name}: ${r.risk}`
   ).join("\n");
 
-  return `You are a viral content analyst. You analyze a single Instagram Reel and provide structured, actionable insights about why the content works and how its formula can be replicated.
+  return `You are a viral content analyst. You analyze a single Instagram post (Reel, image post, or carousel) and provide structured, actionable insights about why the content works and how its formula can be replicated.
 
 IMPORTANT: All text values in the JSON must be written in Bahasa Indonesia. Do NOT use English for any text fields.
 
 You MUST return your analysis as a JSON object with this exact structure:
 {
-  "shortcode": "the reel shortcode from metadata",
-  "oneLineDiagnosis": "one sentence explaining why this reel works or doesn't",
+  "shortcode": "the post shortcode from metadata",
+  "oneLineDiagnosis": "one sentence explaining why this post works or doesn't",
   "scoreJustification": "concise explanation (2-3 sentences) of why these scores were given, referencing key strengths and weaknesses",
   "scorecard": {
     "performanceScore": 0-100,
@@ -128,8 +128,9 @@ function formatReelMetadata(reel: ReelRecord, userMetadata: UserProfileMetadata 
   const parts: string[] = [];
   parts.push(`- Shortcode: ${reel.igShortcode}`);
   parts.push(`- URL: ${reel.igUrl}`);
+  parts.push(`- Media Type: ${reel.mediaType}`);
   if (reel.caption) parts.push(`- Caption: ${reel.caption}`);
-  if (reel.viewCount) parts.push(`- Views: ${reel.viewCount.toLocaleString()}`);
+  if (reel.viewCount) parts.push(`- ${reel.mediaType === "post" ? "Likes" : "Views"}: ${reel.viewCount.toLocaleString()}`);
   if (reel.postDate) parts.push(`- Posted: ${reel.postDate}`);
   if (reel.durationSec) parts.push(`- Duration: ${reel.durationSec}s`);
   if (userMetadata) {
@@ -140,8 +141,8 @@ function formatReelMetadata(reel: ReelRecord, userMetadata: UserProfileMetadata 
   return parts.join("\n");
 }
 
-export function buildPerReelUserPrompt(prompt: string, reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
-  return `Analyze this Instagram Reel using the viral content scoring framework.
+export function buildPerMediaUserPrompt(prompt: string, reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
+  return `Analyze this Instagram post (${reel.mediaType}) using the viral content scoring framework.
 
 User's analysis request: ${prompt}
 
@@ -151,10 +152,10 @@ ${formatReelMetadata(reel, userMetadata)}
 Note: Private metrics (shares, saves, watch time, completion rate) are NOT available. Estimate performance qualitatively from views, comments, and content analysis.`;
 }
 
-export function buildPerReelMetadataOnlyPrompt(prompt: string, reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
-  return `Analyze this Instagram Reel using the viral content scoring framework.
+export function buildPerMediaMetadataOnlyPrompt(prompt: string, reel: ReelRecord, userMetadata: UserProfileMetadata | null): string {
+  return `Analyze this Instagram post (${reel.mediaType}) using the viral content scoring framework.
 
-IMPORTANT: Video file was not available. Provide your best analysis using metadata (caption, view count, date, duration) combined with your knowledge of Instagram Reels trends and viral patterns. Do NOT refuse to analyze — provide estimated scores and insights based on metadata patterns.
+IMPORTANT: ${reel.mediaType === "reel" ? "Video file was not available." : "This is an image post — no video to analyze."} Provide your best analysis using metadata (caption, view/like count, date${reel.durationSec ? ", duration" : ""}) combined with your knowledge of Instagram content trends and viral patterns. Do NOT refuse to analyze — provide estimated scores and insights based on metadata patterns.
 
 User's analysis request: ${prompt}
 

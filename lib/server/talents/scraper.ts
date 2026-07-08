@@ -4,90 +4,63 @@ import type { MediaMetadata } from "@/server/analysis/reel-fetcher";
 import { visitReelPage } from "@/server/analysis/reel-fetcher";
 import { IG_BASE, MAX_CONCURRENT_REELS } from "@/server/analysis/constants";
 
-async function extractReelShortcodes(page: Page): Promise<string[]> {
-  const scripts = await page.evaluate(() => {
-    const data: string[] = [];
-    const scriptTags = document.querySelectorAll("script");
-    for (const script of Array.from(scriptTags)) {
-      const text = script.textContent || "";
-      if (text.includes("__INITIAL_STATE__")) {
-        try {
-          const jsonMatch = text.match(/window\.__INITIAL_STATE__\s*=\s*({.+?});\s*$/m);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[1]);
-            const user = parsed.user;
-            if (user?.media?.edges) {
-              for (const edge of user.media.edges) {
-                const node = edge.node;
-                if (node?.shortcode) {
-                  data.push(node.shortcode);
-                }
-              }
-            }
-          }
-        } catch {
-          // continue
-        }
+async function extractMediaShortcodes(page: Page): Promise<Array<{ shortcode: string; mediaType: "reel" | "post" }>> {
+  await page.waitForTimeout(2000);
+
+  const results = await page.evaluate(() => {
+    const items: Array<{ shortcode: string; mediaType: "reel" | "post" }> = [];
+    const links = document.querySelectorAll('a[href*="/reel/"], a[href*="/p/"]');
+    const seen = new Set<string>();
+    for (const a of links) {
+      const href = a.getAttribute("href");
+      if (!href) continue;
+      const reelMatch = href.match(/\/reel\/([\w-]+)/);
+      if (reelMatch && !seen.has(reelMatch[1])) {
+        seen.add(reelMatch[1]);
+        items.push({ shortcode: reelMatch[1], mediaType: "reel" });
+        continue;
+      }
+      const postMatch = href.match(/\/p\/([\w-]+)/);
+      if (postMatch && !seen.has(postMatch[1])) {
+        seen.add(postMatch[1]);
+        items.push({ shortcode: postMatch[1], mediaType: "post" });
       }
     }
-    return data;
+    return items;
   });
 
-  if (scripts.length > 0) return scripts.slice(0, 10);
-
-  const bodyText = await page.evaluate(() => document.body.innerText);
-  const shortcodeRe = /\/reel\/([\w-]+)/g;
-  const matches = new Set<string>();
-  let match: RegExpExecArray | null;
-  while ((match = shortcodeRe.exec(bodyText)) !== null) {
-    matches.add(match[1]);
-  }
-  return Array.from(matches).slice(0, 10);
+  return results.slice(0, 10);
 }
 
-async function extractReelShortcodesFromProfile(page: Page): Promise<string[]> {
-  const shortcodes: string[] = [];
-
-  const html = await page.content();
-  const shortcodeRe = /\/p\/([\w-]+)|\/reel\/([\w-]+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = shortcodeRe.exec(html)) !== null) {
-    shortcodes.push(match[1] || match[2]);
-  }
-
-  return [...new Set(shortcodes)].slice(0, 10);
-}
-
-export async function scrapeProfileReels(username: string, context: BrowserContext): Promise<MediaMetadata[]> {
+export async function scrapeProfileMedia(username: string, context: BrowserContext): Promise<MediaMetadata[]> {
   const page = await context.newPage();
   try {
-    const profileUrl = `${IG_BASE}/${username}/reels/`;
-    await page.goto(profileUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await page.waitForTimeout(3000);
+    await page.goto(`${IG_BASE}/${username}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(5000);
 
-    let shortcodes = await extractReelShortcodes(page);
+    const items = await extractMediaShortcodes(page);
 
-    if (shortcodes.length === 0) {
-      await page.goto(`${IG_BASE}/${username}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
-      await page.waitForTimeout(3000);
-      shortcodes = await extractReelShortcodesFromProfile(page);
+    if (items.length === 0) {
+      throw new Error(`No posts found for @${username}`);
     }
 
-    if (shortcodes.length === 0) {
-      throw new Error(`No reels found for @${username}`);
-    }
+    const reelCount = items.filter((i) => i.mediaType === "reel").length;
+    const postCount = items.filter((i) => i.mediaType === "post").length;
+    console.log(`Found ${items.length} posts for @${username}: ${reelCount} reels, ${postCount} posts`);
 
-    console.log(`Found ${shortcodes.length} reels for @${username}`);
+    const urls = items.map((item) => ({
+      url: item.mediaType === "reel" ? `${IG_BASE}/reel/${item.shortcode}/` : `${IG_BASE}/p/${item.shortcode}/`,
+      mediaType: item.mediaType,
+    }));
 
-    const urls = shortcodes.map((sc) => `${IG_BASE}/reel/${sc}/`);
     const results: MediaMetadata[] = [];
 
     for (let i = 0; i < urls.length; i += MAX_CONCURRENT_REELS) {
       const batch = urls.slice(i, i + MAX_CONCURRENT_REELS);
       const batchResults = await Promise.all(
-        batch.map((url) =>
+        batch.map(({ url }) =>
           visitReelPage(url, context).catch((error) => {
-            console.warn(`Failed to fetch reel ${url}: ${error instanceof Error ? error.message : String(error)}`);
+            console.warn(`Failed to fetch ${url}: ${error instanceof Error ? error.message : String(error)}`);
             return null;
           }),
         ),

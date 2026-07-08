@@ -4,9 +4,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import { initBrowser, loadOrCreateContext, closeBrowser } from "@/server/analysis/ig-session";
 import { fetchUserProfile } from "@/server/analysis/reel-fetcher";
-import { scrapeProfileReels } from "./scraper";
+import { scrapeProfileMedia } from "./scraper";
 import { buildTalentAnalysisSystemInstruction } from "@/server/analysis/talent-prompt";
-import { runPerReelAnalysis } from "@/server/analysis/prompt-router";
+import { runPerMediaAnalysis } from "@/server/analysis/prompt-router";
 import { withRetry } from "@/server/analysis/gemini-retry";
 import { parseStructuredAnalysis } from "@/analysis/analysis-parser";
 import { parseProfileAnalysis } from "@/analysis/profile-types";
@@ -53,7 +53,7 @@ export async function analyzeTalent(
   try {
     const context = await loadOrCreateContext(browser);
 
-    const reels = await scrapeProfileReels(instagramUsername, context);
+    const reels = await scrapeProfileMedia(instagramUsername, context);
 
     if (reels.length === 0) {
       throw new Error(`No reels found for @${instagramUsername}`);
@@ -70,7 +70,7 @@ export async function analyzeTalent(
       posts: profile.postCount,
     };
 
-    const perReelResults = await runPerReelAnalysis(
+    const perReelResults = await runPerMediaAnalysis(
       "Analyze this talent's content style and performance",
       reelRecords,
       userMetadata,

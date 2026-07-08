@@ -35,7 +35,7 @@ export type GeminiAnalysisResult = {
   rawGemini: string;
 };
 
-export type PerReelAnalysisResult = {
+export type PerMediaAnalysisResult = {
   reelId: string;
   shortcode: string;
   analysis: string;
@@ -49,7 +49,7 @@ export type AnalysisResult = {
   analysis: string;
   rawGemini: string;
   uploadedReels: { reelId: string; geminiFileUri: string | null; geminiFileExpiresAt: string | null }[];
-  perReelResults: PerReelAnalysisResult[];
+  perReelResults: PerMediaAnalysisResult[];
   videoCount: number;
   totalCount: number;
   usedMetadataOnly: boolean;
