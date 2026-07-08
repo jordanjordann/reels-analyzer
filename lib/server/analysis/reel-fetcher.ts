@@ -3,9 +3,12 @@ import { type BrowserContext, type Page } from "playwright";
 import { extractVideoUrl as extractVideoUrlYtDlp } from "./downloader";
 import { MAX_CONCURRENT_REELS, IG_BASE } from "./constants";
 
-export interface ReelMetadata {
+export type MediaType = "reel" | "post" | "carousel";
+
+export interface MediaMetadata {
   url: string;
   shortcode: string;
+  mediaType: MediaType;
   username: string;
   caption: string | null;
   viewCount: number | null;
@@ -46,6 +49,7 @@ async function extractMetadata(page: Page): Promise<{
   durationSec: number | null;
   thumbnailUrl: string | null;
   followerCount: number | null;
+  mediaType: "reel" | "post" | "carousel";
 }> {
   const result = {
     username: "",
@@ -55,6 +59,7 @@ async function extractMetadata(page: Page): Promise<{
     durationSec: null as number | null,
     thumbnailUrl: null as string | null,
     followerCount: null as number | null,
+    mediaType: "reel" as "reel" | "post" | "carousel",
   };
 
   if (page.url().includes("accounts/login")) {
@@ -79,6 +84,7 @@ async function extractMetadata(page: Page): Promise<{
       durationSec: null as number | null,
       thumbnailUrl: null as string | null,
       followerCount: null as number | null,
+      mediaType: "reel" as "reel" | "post" | "carousel",
     };
 
     const scripts = document.querySelectorAll("script");
@@ -95,6 +101,10 @@ async function extractMetadata(page: Page): Promise<{
               const media = entryData.graphql?.shortcode_media || entryData.graphql?.reels_media?.[0];
               if (media) {
                 data.username = media.owner?.username || "";
+                const typename = media.__typename;
+                if (typename === "GraphVideo") data.mediaType = "reel";
+                else if (typename === "GraphSidecar") data.mediaType = "carousel";
+                else if (typename === "GraphImage") data.mediaType = "post";
                 const captionEdges = media.edge_media_to_caption?.edges;
                 if (captionEdges?.[0]?.node?.text) {
                   data.caption = captionEdges[0].node.text;
@@ -133,6 +143,9 @@ async function extractMetadata(page: Page): Promise<{
   result.durationSec = result.durationSec || jsonData.durationSec;
   result.thumbnailUrl = result.thumbnailUrl || jsonData.thumbnailUrl;
   result.followerCount = result.followerCount || jsonData.followerCount;
+  if (jsonData.mediaType !== "reel") {
+    result.mediaType = jsonData.mediaType;
+  }
 
   const metaTags = await page.evaluate(() => {
     const data = {
@@ -478,7 +491,7 @@ export async function fetchUserProfile(username: string, context: BrowserContext
   }
 }
 
-export async function visitReelPage(url: string, context: BrowserContext): Promise<ReelMetadata> {
+export async function visitReelPage(url: string, context: BrowserContext): Promise<MediaMetadata> {
   const page = await context.newPage();
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -490,6 +503,7 @@ export async function visitReelPage(url: string, context: BrowserContext): Promi
     return {
       url,
       shortcode: extractShortcode(url),
+      mediaType: metadata.mediaType,
       username: metadata.username,
       caption: metadata.caption,
       viewCount: metadata.viewCount,
@@ -507,8 +521,8 @@ export async function visitReelPage(url: string, context: BrowserContext): Promi
 export async function fetchAllReels(
   urls: string[],
   context: BrowserContext,
-): Promise<{ success: ReelMetadata[]; failed: FailedReel[] }> {
-  const success: ReelMetadata[] = [];
+): Promise<{ success: MediaMetadata[]; failed: FailedReel[] }> {
+  const success: MediaMetadata[] = [];
   const failed: FailedReel[] = [];
   let expectedUsername = "";
 

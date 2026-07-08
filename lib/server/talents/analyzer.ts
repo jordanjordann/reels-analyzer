@@ -12,16 +12,17 @@ import { parseStructuredAnalysis } from "@/analysis/analysis-parser";
 import { parseProfileAnalysis } from "@/analysis/profile-types";
 import type { ProfileAnalysis } from "@/analysis/profile-types";
 import type { ReelRecord } from "@/server/sessions/types";
-import type { ReelMetadata } from "@/server/analysis/reel-fetcher";
+import type { MediaMetadata } from "@/server/analysis/reel-fetcher";
 import type { UserProfileMetadata } from "@/server/analysis/types";
 
-function metadataToReelRecord(meta: ReelMetadata, username: string): ReelRecord {
+function metadataToReelRecord(meta: MediaMetadata, username: string): ReelRecord {
   return {
     id: randomUUID(),
     sessionId: randomUUID(),
     username,
     igShortcode: meta.shortcode,
     igUrl: meta.url,
+    mediaType: meta.mediaType,
     thumbnailUrl: meta.thumbnailUrl,
     videoUrl: meta.videoUrl,
     durationSec: meta.durationSec,
@@ -34,7 +35,7 @@ function metadataToReelRecord(meta: ReelMetadata, username: string): ReelRecord 
   };
 }
 
-function metadataToUserProfile(meta: ReelMetadata): UserProfileMetadata {
+function metadataToUserProfile(meta: MediaMetadata): UserProfileMetadata {
   return {
     username: meta.username,
     followers: meta.followerCount ?? null,

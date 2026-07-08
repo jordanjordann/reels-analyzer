@@ -156,6 +156,7 @@ export async function POST(request: Request) {
       const reelsToStore: ScrapedReel[] = newReels.map((r) => ({
         shortcode: r.shortcode,
         url: r.url,
+        mediaType: r.mediaType,
         thumbnailUrl: r.thumbnailUrl,
         videoUrl: r.videoUrl,
         caption: r.caption,

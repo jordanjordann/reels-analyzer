@@ -5,9 +5,12 @@ export type UserProfileMetadata = {
   posts: number | null;
 };
 
+import type { MediaType } from "@/server/analysis/reel-fetcher";
+
 export type ScrapedReel = {
   shortcode: string;
   url: string;
+  mediaType: MediaType;
   thumbnailUrl: string | null;
   videoUrl: string | null;
   caption: string | null;

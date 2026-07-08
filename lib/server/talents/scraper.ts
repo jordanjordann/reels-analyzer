@@ -1,6 +1,6 @@
 import { type BrowserContext, type Page } from "playwright";
 
-import type { ReelMetadata } from "@/server/analysis/reel-fetcher";
+import type { MediaMetadata } from "@/server/analysis/reel-fetcher";
 import { visitReelPage } from "@/server/analysis/reel-fetcher";
 import { IG_BASE, MAX_CONCURRENT_REELS } from "@/server/analysis/constants";
 
@@ -58,7 +58,7 @@ async function extractReelShortcodesFromProfile(page: Page): Promise<string[]> {
   return [...new Set(shortcodes)].slice(0, 10);
 }
 
-export async function scrapeProfileReels(username: string, context: BrowserContext): Promise<ReelMetadata[]> {
+export async function scrapeProfileReels(username: string, context: BrowserContext): Promise<MediaMetadata[]> {
   const page = await context.newPage();
   try {
     const profileUrl = `${IG_BASE}/${username}/reels/`;
@@ -80,7 +80,7 @@ export async function scrapeProfileReels(username: string, context: BrowserConte
     console.log(`Found ${shortcodes.length} reels for @${username}`);
 
     const urls = shortcodes.map((sc) => `${IG_BASE}/reel/${sc}/`);
-    const results: ReelMetadata[] = [];
+    const results: MediaMetadata[] = [];
 
     for (let i = 0; i < urls.length; i += MAX_CONCURRENT_REELS) {
       const batch = urls.slice(i, i + MAX_CONCURRENT_REELS);
@@ -92,7 +92,7 @@ export async function scrapeProfileReels(username: string, context: BrowserConte
           }),
         ),
       );
-      results.push(...batchResults.filter((r): r is ReelMetadata => r !== null));
+      results.push(...batchResults.filter((r): r is MediaMetadata => r !== null));
     }
 
     return results;

@@ -1,3 +1,5 @@
+import type { MediaType } from "@/server/analysis/reel-fetcher";
+
 export type MessageRole = "user" | "assistant";
 
 export type SessionListItem = {
@@ -23,6 +25,7 @@ export type ReelRecord = {
   username: string;
   igShortcode: string;
   igUrl: string;
+  mediaType: MediaType;
   thumbnailUrl: string | null;
   videoUrl: string | null;
   durationSec: number | null;

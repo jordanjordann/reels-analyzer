@@ -1,0 +1,1 @@
+ALTER TABLE reels ADD COLUMN media_type TEXT NOT NULL DEFAULT 'reel';

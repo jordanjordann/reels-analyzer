@@ -93,9 +93,9 @@ async function buildSessionDetail(session: Record<string, unknown>): Promise<Ses
     db.execute({
       sql: `
         SELECT
-          id, session_id, username, ig_shortcode, ig_url, thumbnail_url, video_url,
-          duration_sec, view_count, post_date, caption, gemini_file_uri,
-          gemini_file_expires_at, created_at
+          id, session_id, username, ig_shortcode, ig_url, media_type,
+          thumbnail_url, video_url, duration_sec, view_count, post_date, caption,
+          gemini_file_uri, gemini_file_expires_at, created_at
         FROM reels
         WHERE session_id = ?
         ORDER BY created_at ASC
@@ -119,6 +119,7 @@ async function buildSessionDetail(session: Record<string, unknown>): Promise<Ses
       username: String(row.username),
       igShortcode: String(row.ig_shortcode),
       igUrl: String(row.ig_url),
+      mediaType: String(row.media_type) as "reel" | "post" | "carousel",
       thumbnailUrl: typeof row.thumbnail_url === "string" ? row.thumbnail_url : null,
       videoUrl: typeof row.video_url === "string" ? row.video_url : null,
       durationSec: typeof row.duration_sec === "number" ? row.duration_sec : null,
@@ -258,14 +259,15 @@ export function validateUsername(username: unknown): username is string {
 export async function storeReels(sessionId: string, username: string, scraped: ScrapedReel[]) {
   for (const reel of scraped) {
     await db.execute({
-      sql: `INSERT OR IGNORE INTO reels (id, session_id, username, ig_shortcode, ig_url, thumbnail_url, video_url, caption, view_count, post_date, duration_sec)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO reels (id, session_id, username, ig_shortcode, ig_url, media_type, thumbnail_url, video_url, caption, view_count, post_date, duration_sec)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         randomUUID(),
         sessionId,
         username,
         reel.shortcode,
         reel.url,
+        reel.mediaType,
         reel.thumbnailUrl,
         reel.videoUrl,
         reel.caption,
