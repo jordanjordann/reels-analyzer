@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/server/auth";
 import { db } from "@/shared/db";
 import { generateContent, generateContentStream } from "@/server/talents/content-generator";
+import { getActiveMemories } from "@/server/talents/content-memory";
 import { validateFile, extractFileContent } from "@/server/talents/file-processor";
 import type { ContentMessage } from "@/api/talents/content/types";
 
@@ -146,6 +147,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     createdAt: new Date().toISOString(),
   };
 
+  const memories = await getActiveMemories(talentId, 8);
+
   if (request.headers.get("accept")?.includes("text/event-stream")) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -163,6 +166,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             combinedExtraContext,
             String(session.topic ?? ""),
             referenceProfiles,
+            memories,
           )) {
             assistantContent += chunk;
             controller.enqueue(encoder.encode(formatSse("chunk", { content: chunk })));
@@ -217,6 +221,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       combinedExtraContext,
       String(session.topic ?? ""),
       referenceProfiles,
+      memories,
     );
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);

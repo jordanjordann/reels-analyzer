@@ -34,3 +34,33 @@ export type CreateSessionBody = {
 export type SendMessageBody = {
   content: string;
 };
+
+export type MemoryCategory =
+  | "format"
+  | "tone"
+  | "structure"
+  | "language"
+  | "avoidance"
+  | "topic_focus";
+
+export type MemorySource = "explicit" | "implicit" | "correction";
+
+export type ContentMemory = {
+  id: string;
+  talentId: string;
+  category: MemoryCategory;
+  key: string;
+  value: string;
+  confidence: number;
+  source: MemorySource;
+  lastSeenAt: string;
+  createdAt: string;
+};
+
+export type ExtractedMemory = {
+  category: MemoryCategory;
+  key: string;
+  value: string;
+  confidence: number;
+  source: MemorySource;
+};

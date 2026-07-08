@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import { withRetry } from "@/server/analysis/gemini-retry";
-import type { ContentMessage } from "@/api/talents/content/types";
+import type { ContentMemory, ContentMessage } from "@/api/talents/content/types";
 
 type ContentType = "video" | "carousel" | null;
 type GeminiContentRole = "user" | "model";
@@ -18,6 +18,7 @@ export function buildContentSystemInstruction(
   extraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
+  memories: ContentMemory[],
 ): string {
   const parts = [
     "You are a creative content strategist. Use the following talent analysis to inform your responses. Write in the talent's voice and style.",
@@ -52,6 +53,10 @@ export function buildContentSystemInstruction(
     parts.push(`\nAdditional context provided by the user:\n${extraContext}`);
   }
 
+  if (memories.length > 0) {
+    parts.push(formatMemoriesForPrompt(memories));
+  }
+
   parts.push(
     "\nOutput format: Plain text script (not JSON). Write in Bahasa Indonesia.",
     "\nIMPORTANT — Video Requests: If the user asks for a video script (Reels/Shorts), you MUST include:",
@@ -74,6 +79,23 @@ export function buildContentSystemInstruction(
   );
 
   return parts.join("\n\n");
+}
+
+function formatMemoriesForPrompt(memories: ContentMemory[]): string {
+  const grouped: Record<string, ContentMemory[]> = {};
+  for (const m of memories) {
+    if (!grouped[m.category]) grouped[m.category] = [];
+    grouped[m.category].push(m);
+  }
+
+  let result = "\nLearned preferences (auto-updated from previous sessions):";
+  for (const [category, items] of Object.entries(grouped)) {
+    result += `\n\n${category.toUpperCase()}:`;
+    for (const item of items) {
+      result += `\n- ${item.key}: ${item.value}`;
+    }
+  }
+  return result;
 }
 
 function formatMessageHistory(messages: ContentMessage[]): GeminiContent[] {
@@ -102,6 +124,7 @@ export async function generateContent(
   extraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
+  memories: ContentMemory[],
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -114,6 +137,7 @@ export async function generateContent(
     extraContext,
     topic,
     referenceProfiles,
+    memories,
   );
 
   console.log("=== CONTENT GENERATOR SYSTEM PROMPT ===");
@@ -150,6 +174,7 @@ export async function* generateContentStream(
   extraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
+  memories: ContentMemory[],
 ): AsyncGenerator<string, void, unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -162,6 +187,7 @@ export async function* generateContentStream(
     extraContext,
     topic,
     referenceProfiles,
+    memories,
   );
 
   const model = createModel(apiKey, systemInstruction);
