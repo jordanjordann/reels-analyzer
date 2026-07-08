@@ -156,7 +156,7 @@ export function ChatSection({ talentId, sessionId, onSessionCreated, isSwitching
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto p-4">
-        <ChatMessageList messages={deferredMessages} isSending={isDisabled && !hasStreamingAssistantContent} />
+        <ChatMessageList messages={deferredMessages} isSending={isDisabled && !hasStreamingAssistantContent} talentId={talentId} sessionId={sessionId ?? undefined} />
         <div ref={messagesEndRef} />
       </div>
       <ChatInput onSend={handleSend} disabled={isDisabled} />

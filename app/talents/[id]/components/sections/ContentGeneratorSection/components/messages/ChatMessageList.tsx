@@ -3,8 +3,9 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { cn } from "@/shared/utils";
 import type { ChatMessageListProps } from "../../types";
+import { MessageFeedback } from "./MessageFeedback";
 
-export function ChatMessageList({ messages, isSending }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isSending, talentId, sessionId }: ChatMessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
@@ -32,11 +33,16 @@ export function ChatMessageList({ messages, isSending }: ChatMessageListProps) {
             {msg.role === "user" ? (
               <div className="whitespace-pre-wrap">{msg.content}</div>
             ) : (
-              <div className="prose prose-sm prose-invert max-w-none prose-p:mb-2 prose-ul:mb-2 prose-ol:mb-2 prose-li:mb-1 prose-headings:mb-2 prose-code:bg-secondary/50 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-pre:bg-secondary/50 prose-pre:rounded">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                  {msg.content}
-                </ReactMarkdown>
-              </div>
+              <>
+                <div className="prose prose-sm prose-invert max-w-none prose-p:mb-2 prose-ul:mb-2 prose-ol:mb-2 prose-li:mb-1 prose-headings:mb-2 prose-code:bg-secondary/50 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-pre:bg-secondary/50 prose-pre:rounded">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+                {!msg.id.startsWith("temp-") && talentId && sessionId && (
+                  <MessageFeedback talentId={talentId} sessionId={sessionId} />
+                )}
+              </>
             )}
           </div>
         </div>
