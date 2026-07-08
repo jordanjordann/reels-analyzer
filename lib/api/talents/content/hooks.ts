@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getContentSessions, getContentSession, createContentSession, deleteContentSession, sendMessage } from "@/api/talents/content/api";
+import { getContentSessions, getContentSession, createContentSession, deleteContentSession, sendMessage, getContentMemories, updateContentMemory, deleteContentMemory, clearContentMemories, submitFeedback } from "@/api/talents/content/api";
 import { CONTENT_KEYS } from "@/api/talents/content/constants";
 import type { CreateSessionBody, SendMessageBody } from "@/api/talents/content/types";
 
@@ -56,6 +56,59 @@ export function useSendMessage(talentId: string, sessionId: string) {
     mutationFn: (body: SendMessageBody | FormData) => sendMessage(talentId, sessionId, body as SendMessageBody),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: CONTENT_KEYS.session(talentId, sessionId) });
+    },
+  });
+}
+
+export function useContentMemories(talentId: string) {
+  return useQuery({
+    queryKey: CONTENT_KEYS.memories(talentId),
+    queryFn: () => getContentMemories(talentId),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUpdateMemory(talentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { category: string; key: string; value: string }) =>
+      updateContentMemory(talentId, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENT_KEYS.memories(talentId) });
+    },
+  });
+}
+
+export function useDeleteMemory(talentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { category: string; key: string }) =>
+      deleteContentMemory(talentId, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENT_KEYS.memories(talentId) });
+    },
+  });
+}
+
+export function useClearMemories(talentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => clearContentMemories(talentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENT_KEYS.memories(talentId) });
+    },
+  });
+}
+
+export function useSubmitFeedback(talentId: string, sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { type: "up" | "down" | "correction"; text?: string }) =>
+      submitFeedback(talentId, sessionId, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENT_KEYS.memories(talentId) });
     },
   });
 }

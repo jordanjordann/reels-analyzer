@@ -5,6 +5,7 @@ import { PlusIcon } from "lucide-react";
 import type { ContentGeneratorSectionProps } from "./types";
 import { SessionList } from "./components/lists/SessionList";
 import { ChatSection } from "./components/sections/ChatSection";
+import { MemorySettingsSection } from "./components/sections/MemorySettingsSection";
 
 export function ContentGeneratorSection({ talentId }: ContentGeneratorSectionProps) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -58,6 +59,8 @@ export function ContentGeneratorSection({ talentId }: ContentGeneratorSectionPro
           />
         </div>
       </div>
+
+      <MemorySettingsSection talentId={talentId} />
     </div>
   );
 }

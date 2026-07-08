@@ -1,4 +1,4 @@
-import type { ContentSessionSummary, ContentMessage } from "@/api/talents/content/types";
+import type { ContentSessionSummary, ContentMessage, ContentMemory } from "@/api/talents/content/types";
 
 export type ContentGeneratorSectionProps = {
   talentId: string;
@@ -29,10 +29,27 @@ export type ChatSectionProps = {
 export type ChatMessageListProps = {
   messages: ContentMessage[];
   isSending: boolean;
+  talentId?: string;
+  sessionId?: string;
+};
+
+export type MessageFeedbackProps = {
+  talentId: string;
+  sessionId: string;
 };
 
 export type ChatInputProps = {
   onSend: (content: string, file?: File | null) => void;
   disabled: boolean;
   placeholder?: string;
+};
+
+export type MemorySettingsSectionProps = {
+  talentId: string;
+};
+
+export type EditMemoryModalProps = {
+  memory: ContentMemory;
+  talentId: string;
+  onClose: () => void;
 };

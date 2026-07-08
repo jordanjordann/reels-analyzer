@@ -1,5 +1,5 @@
 import { fetchJson } from "@/shared/api";
-import type { ListSessionsResponse, SessionDetailResponse, SendMessageResponse, CreateSessionBody, SendMessageBody, ContentMessage } from "./types";
+import type { ListSessionsResponse, SessionDetailResponse, SendMessageResponse, CreateSessionBody, SendMessageBody, ContentMessage, ContentMemory } from "./types";
 
 type SendMessageStreamHandlers = {
   onUserMessage?: (message: ContentMessage) => void;
@@ -149,4 +149,51 @@ export async function sendMessageStream(
   }
 
   return doneResponse;
+}
+
+export async function getContentMemories(talentId: string): Promise<{ memories: ContentMemory[] }> {
+  return fetchJson<{ memories: ContentMemory[] }>(`/api/talents/${encodeURIComponent(talentId)}/memories`);
+}
+
+export async function updateContentMemory(
+  talentId: string,
+  data: { category: string; key: string; value: string },
+): Promise<{ success: boolean; value: string }> {
+  return fetchJson<{ success: boolean; value: string }>(`/api/talents/${encodeURIComponent(talentId)}/memories`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteContentMemory(
+  talentId: string,
+  data: { category: string; key: string },
+): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(`/api/talents/${encodeURIComponent(talentId)}/memories`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function clearContentMemories(talentId: string): Promise<{ success: boolean }> {
+  return fetchJson<{ success: boolean }>(`/api/talents/${encodeURIComponent(talentId)}/memories?all=true`, {
+    method: "DELETE",
+  });
+}
+
+export async function submitFeedback(
+  talentId: string,
+  sessionId: string,
+  data: { type: "up" | "down" | "correction"; text?: string },
+): Promise<{ success: boolean; memoriesUpdated: number }> {
+  return fetchJson<{ success: boolean; memoriesUpdated: number }>(
+    `/api/talents/${encodeURIComponent(talentId)}/content/sessions/${encodeURIComponent(sessionId)}/feedback`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+  );
 }
