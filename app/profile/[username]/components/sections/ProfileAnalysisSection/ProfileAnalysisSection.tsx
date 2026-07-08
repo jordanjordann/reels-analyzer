@@ -1,7 +1,6 @@
 "use client";
 
 import { RefreshCwIcon, UserIcon } from "lucide-react";
-import { useMutationState } from "@tanstack/react-query";
 import {
   useProfileDetail,
   useRefreshProfileAnalysis,
@@ -95,16 +94,10 @@ export function ProfileAnalysisSection({
   username,
 }: ProfileAnalysisSectionProps) {
   const { data, isFetching } = useProfileDetail(username);
-  const { mutate: refresh } = useRefreshProfileAnalysis(username);
-  const isRefreshing =
-    useMutationState({
-      filters: {
-        mutationKey: ["profiles", "detail", username, "refresh"],
-        status: "pending",
-      },
-    }).length > 0;
+  const { mutate: refresh, isPending: isMutationPending } = useRefreshProfileAnalysis(username);
 
   const isLoading = isFetching && !data?.profile?.analysis;
+  const isGenerating = isMutationPending || isLoading;
 
   if (isLoading) {
     return (
@@ -118,24 +111,24 @@ export function ProfileAnalysisSection({
   if (!data?.profile?.analysis) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-muted-foreground">
-        <UserIcon className="size-10" aria-hidden="true" />
+        <UserIcon className="size-10 animate-pulse" aria-hidden="true" />
         <div>
-          <p className="text-sm">No profile analysis yet</p>
+          <p className="text-sm">{isGenerating ? "Generating analysis..." : "No profile analysis yet"}</p>
           <p className="mt-1 text-xs">
-            Analyze at least 2 reels to see profile insights
+            {isGenerating ? "This may take a moment" : "Analyze at least 2 reels to see profile insights"}
           </p>
         </div>
         <button
           type="button"
           onClick={() => refresh()}
-          disabled={isRefreshing}
+          disabled={isGenerating}
           className="mt-2 flex items-center gap-2 rounded-lg border bg-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary/80 disabled:opacity-50"
         >
           <RefreshCwIcon
-            className={cn("size-4", isRefreshing && "animate-spin")}
+            className={cn("size-4", isGenerating && "animate-spin")}
             aria-hidden="true"
           />
-          {isRefreshing ? "Generating..." : "Generate Analysis"}
+          {isGenerating ? "Generating..." : "Generate Analysis"}
         </button>
       </div>
     );
@@ -153,14 +146,14 @@ export function ProfileAnalysisSection({
         <button
           type="button"
           onClick={() => refresh()}
-          disabled={isRefreshing}
+          disabled={isMutationPending}
           className="flex items-center gap-2 rounded-lg border bg-secondary px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/80 disabled:opacity-50"
         >
           <RefreshCwIcon
-            className={cn("size-3.5", isRefreshing && "animate-spin")}
+            className={cn("size-3.5", isMutationPending && "animate-spin")}
             aria-hidden="true"
           />
-          {isRefreshing ? "Refreshing..." : "Refresh Analysis"}
+          {isMutationPending ? "Refreshing..." : "Refresh Analysis"}
         </button>
       </div>
     </div>
