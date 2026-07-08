@@ -27,7 +27,7 @@ export function validateFile(file: File): string | null {
 async function saveTempFile(file: File): Promise<string> {
   const ext = file.name.split(".").pop() ?? "tmp";
   const tempPath = join(tmpdir(), `reels-analyzer-${randomUUID()}.${ext}`);
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = new Uint8Array(await file.arrayBuffer());
   const fs = await import("node:fs/promises");
   await fs.writeFile(tempPath, buffer);
   return tempPath;
@@ -35,9 +35,13 @@ async function saveTempFile(file: File): Promise<string> {
 
 async function extractTextFromPdf(filePath: string): Promise<string> {
   const dataBuffer = readFileSync(filePath);
-  const pdf = new PDFParse(dataBuffer);
-  const result = await pdf.getText();
-  return result.text;
+  const pdf = new PDFParse({ data: new Uint8Array(dataBuffer) });
+  try {
+    const result = await pdf.getText();
+    return result.text;
+  } finally {
+    await pdf.destroy();
+  }
 }
 
 function extractTextFromTextFile(filePath: string): string {

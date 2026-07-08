@@ -15,7 +15,7 @@ type ReferenceProfile = {
 export function buildContentSystemInstruction(
   analysisContent: string,
   _contentType: ContentType,
-  extraContext: string,
+  sessionExtraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
   memories: ContentMemory[],
@@ -49,8 +49,8 @@ export function buildContentSystemInstruction(
     parts.push(`\nTopic for this session:\n${topic}`);
   }
 
-  if (extraContext) {
-    parts.push(`\nAdditional context provided by the user:\n${extraContext}`);
+  if (sessionExtraContext) {
+    parts.push(`\nSession context provided by the user:\n${sessionExtraContext}`);
   }
 
   if (memories.length > 0) {
@@ -121,10 +121,11 @@ export async function generateContent(
   contentType: ContentType,
   messageHistory: ContentMessage[],
   userMessage: string,
-  extraContext: string,
+  sessionExtraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
   memories: ContentMemory[],
+  fileContext?: string,
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -134,19 +135,21 @@ export async function generateContent(
   const systemInstruction = buildContentSystemInstruction(
     analysisContent,
     contentType,
-    extraContext,
+    sessionExtraContext,
     topic,
     referenceProfiles,
     memories,
   );
 
+  let augmentedUserMessage = userMessage;
+  if (fileContext) {
+    augmentedUserMessage = `The user uploaded the following reference document. Use this as the PRIMARY source of inspiration for your response, applying the talent analysis where relevant:\n\n${fileContext}\n\n---\n\nUser request:\n${userMessage}`;
+  }
+
   console.log("=== CONTENT GENERATOR SYSTEM PROMPT ===");
   console.log(systemInstruction);
   console.log("=== END SYSTEM PROMPT ===");
-  console.log(
-    "Reference profiles:",
-    referenceProfiles.map((r) => r.username),
-  );
+  console.log("File context provided:", fileContext ? `${fileContext.slice(0, 100)}...` : "no");
   console.log("Topic:", topic);
   console.log("User message:", userMessage);
 
@@ -155,7 +158,7 @@ export async function generateContent(
   const history = formatMessageHistory(messageHistory);
   const contents: GeminiContent[] = [
     ...history,
-    { role: "user", parts: [{ text: userMessage }] },
+    { role: "user", parts: [{ text: augmentedUserMessage }] },
   ];
 
   const result = await withRetry(
@@ -171,10 +174,11 @@ export async function* generateContentStream(
   contentType: ContentType,
   messageHistory: ContentMessage[],
   userMessage: string,
-  extraContext: string,
+  sessionExtraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
   memories: ContentMemory[],
+  fileContext?: string,
 ): AsyncGenerator<string, void, unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -184,18 +188,23 @@ export async function* generateContentStream(
   const systemInstruction = buildContentSystemInstruction(
     analysisContent,
     contentType,
-    extraContext,
+    sessionExtraContext,
     topic,
     referenceProfiles,
     memories,
   );
+
+  let augmentedUserMessage = userMessage;
+  if (fileContext) {
+    augmentedUserMessage = `The user uploaded the following reference document. Use this as the PRIMARY source of inspiration for your response, applying the talent analysis where relevant:\n\n${fileContext}\n\n---\n\nUser request:\n${userMessage}`;
+  }
 
   const model = createModel(apiKey, systemInstruction);
 
   const history = formatMessageHistory(messageHistory);
   const contents: GeminiContent[] = [
     ...history,
-    { role: "user", parts: [{ text: userMessage }] },
+    { role: "user", parts: [{ text: augmentedUserMessage }] },
   ];
 
   const result = await withRetry(

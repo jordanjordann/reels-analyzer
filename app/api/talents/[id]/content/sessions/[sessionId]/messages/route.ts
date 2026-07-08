@@ -137,7 +137,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   console.log("Reference profiles:", referenceProfiles.map((p) => p.username));
   console.log("Previous messages count:", previousMessages.length);
 
-  const combinedExtraContext = [String(session.extra_context ?? ""), fileExtraContext].filter(Boolean).join("\n\n");
+  const sessionExtraContext = String(session.extra_context ?? "");
   const contentType = session.content_type ? String(session.content_type) as "video" | "carousel" | null : null;
   const userMessage: ContentMessage = {
     id: userMessageId,
@@ -163,10 +163,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             contentType,
             previousMessages,
             content,
-            combinedExtraContext,
+            sessionExtraContext,
             String(session.topic ?? ""),
             referenceProfiles,
             memories,
+            fileExtraContext || undefined,
           )) {
             assistantContent += chunk;
             controller.enqueue(encoder.encode(formatSse("chunk", { content: chunk })));
@@ -179,7 +180,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           });
 
           await db.execute({
-            sql: "UPDATE content_sessions SET updated_at = datetime('now') WHERE id = ?",
+            sql: "UPDATE content_sessions SET updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z') WHERE id = ?",
             args: [sessionId],
           });
 
@@ -228,10 +229,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       contentType,
       previousMessages,
       content,
-      combinedExtraContext,
+      sessionExtraContext,
       String(session.topic ?? ""),
       referenceProfiles,
       memories,
+      fileExtraContext || undefined,
     );
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -245,7 +247,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
 
   await db.execute({
-    sql: "UPDATE content_sessions SET updated_at = datetime('now') WHERE id = ?",
+    sql: "UPDATE content_sessions SET updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z') WHERE id = ?",
     args: [sessionId],
   });
 

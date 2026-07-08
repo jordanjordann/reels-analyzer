@@ -1,5 +1,7 @@
 "use client";
 
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { GrowthSuggestionsSectionProps } from "../../types";
 
 export function GrowthSuggestionsSection({
@@ -21,7 +23,11 @@ export function GrowthSuggestionsSection({
             <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-400/10 text-xs font-mono text-blue-400">
               {i + 1}
             </span>
-            {suggestion}
+            <span className="[&>p]:inline [&>p]:m-0">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {suggestion}
+              </ReactMarkdown>
+            </span>
           </li>
         ))}
       </ol>

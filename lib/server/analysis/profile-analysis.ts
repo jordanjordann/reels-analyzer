@@ -179,13 +179,13 @@ async function upsertProfileAnalysis(
   await db.execute({
     sql: `
       INSERT INTO profile_analyses (id, username, content, raw_gemini, user_prompt, reel_count, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z'))
       ON CONFLICT(username) DO UPDATE SET
         content = excluded.content,
         raw_gemini = excluded.raw_gemini,
         user_prompt = excluded.user_prompt,
         reel_count = excluded.reel_count,
-        updated_at = datetime('now')
+        updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')
     `,
     args: [id, username, content, rawGemini, userPrompt, reelCount],
   });

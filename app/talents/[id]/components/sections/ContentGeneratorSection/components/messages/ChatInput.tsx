@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { SendIcon, PaperclipIcon, XIcon, FileTextIcon } from "lucide-react";
 import { cn } from "@/shared/utils";
 import type { ChatInputProps } from "../../types";
@@ -12,12 +12,6 @@ export function ChatInput({ onSend, disabled, placeholder = "Type a message..." 
   const [fileError, setFileError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!disabled) {
-      textareaRef.current?.focus();
-    }
-  }, [disabled]);
 
   function handleFileSelect(file: File) {
     setFileError(null);

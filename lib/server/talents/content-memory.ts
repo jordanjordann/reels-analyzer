@@ -32,12 +32,12 @@ export async function upsertMemory(
   await db.execute({
     sql: `
       INSERT INTO content_memories (id, talent_id, category, key, value, confidence, source, last_seen_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z'), (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z'))
       ON CONFLICT(talent_id, category, key) DO UPDATE SET
         value = excluded.value,
         confidence = (excluded.confidence + content_memories.confidence) / 2,
         source = excluded.source,
-        last_seen_at = datetime('now')
+        last_seen_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')
     `,
     args: [id, talentId, category, key, value, confidence, source],
   });
@@ -100,7 +100,7 @@ export async function updateMemoryValue(
   await db.execute({
     sql: `
       UPDATE content_memories
-      SET value = ?, source = 'explicit', confidence = 1.0, last_seen_at = datetime('now')
+      SET value = ?, source = 'explicit', confidence = 1.0, last_seen_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')
       WHERE talent_id = ? AND category = ? AND key = ?
     `,
     args: [value, talentId, category, key],

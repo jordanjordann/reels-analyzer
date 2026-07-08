@@ -149,7 +149,7 @@ export async function addMessage(sessionId: string, role: MessageRole, content: 
   });
 
   await db.execute({
-    sql: "UPDATE sessions SET updated_at = datetime('now') WHERE id = ?",
+    sql: "UPDATE sessions SET updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z') WHERE id = ?",
     args: [sessionId],
   });
 
@@ -158,7 +158,7 @@ export async function addMessage(sessionId: string, role: MessageRole, content: 
 
 export async function updateSessionTitle(sessionId: string, title: string) {
   await db.execute({
-    sql: "UPDATE sessions SET title = ?, updated_at = datetime('now') WHERE id = ?",
+    sql: "UPDATE sessions SET title = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z') WHERE id = ?",
     args: [title, sessionId],
   });
 }
@@ -181,7 +181,7 @@ export async function upsertProfile(
             reel_count = COALESCE(excluded.reel_count, profiles.reel_count),
             session_count = COALESCE(excluded.session_count, profiles.session_count),
             last_analyzed_at = COALESCE(excluded.last_analyzed_at, profiles.last_analyzed_at),
-            updated_at = datetime('now')`,
+            updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')`,
     args: [
       normalized,
       followerCount,
@@ -197,7 +197,7 @@ export async function upsertProfile(
 export async function incrementProfileReelCount(username: string, count: number) {
   const normalized = normalizeUsername(username);
   await db.execute({
-    sql: `UPDATE profiles SET reel_count = reel_count + ?, last_analyzed_at = datetime('now'), updated_at = datetime('now') WHERE username = ?`,
+    sql: `UPDATE profiles SET reel_count = reel_count + ?, last_analyzed_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z'), updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z') WHERE username = ?`,
     args: [count, normalized],
   });
 }
@@ -205,7 +205,7 @@ export async function incrementProfileReelCount(username: string, count: number)
 export async function decrementProfileReelCount(username: string, count: number = 1) {
   const normalized = normalizeUsername(username);
   await db.execute({
-    sql: `UPDATE profiles SET reel_count = MAX(0, reel_count - ?), updated_at = datetime('now') WHERE username = ?`,
+    sql: `UPDATE profiles SET reel_count = MAX(0, reel_count - ?), updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z') WHERE username = ?`,
     args: [count, normalized],
   });
 }
@@ -218,7 +218,7 @@ export async function syncProfileTracking(username: string) {
             reel_count = (SELECT COUNT(DISTINCT r.id) FROM reels r WHERE r.username = ?),
             session_count = (SELECT COUNT(DISTINCT r.session_id) FROM reels r WHERE r.username = ?),
             last_analyzed_at = (SELECT MAX(r.created_at) FROM reels r WHERE r.username = ?),
-            updated_at = datetime('now')
+            updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')
           WHERE username = ?`,
     args: [normalized, normalized, normalized, normalized],
   });
@@ -314,7 +314,7 @@ export async function storeAnalysis(
             raw_gemini = excluded.raw_gemini,
             user_prompt = excluded.user_prompt,
             viral_intelligence_score = excluded.viral_intelligence_score,
-            created_at = datetime('now')`,
+            created_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')`,
     args: [id, reelId, sessionId, content, rawGemini, userPrompt, viralIntelligenceScore],
   });
   return id;

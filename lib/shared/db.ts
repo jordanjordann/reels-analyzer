@@ -21,10 +21,10 @@ export async function setSetting(key: string, value: string) {
   await db.execute({
     sql: `
       INSERT INTO settings (key, value, updated_at)
-      VALUES (?, ?, datetime('now'))
+      VALUES (?, ?, (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z'))
       ON CONFLICT(key) DO UPDATE SET
         value = excluded.value,
-        updated_at = datetime('now')
+        updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')
     `,
     args: [key, value],
   });

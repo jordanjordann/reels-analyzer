@@ -4,22 +4,18 @@ import { useState } from "react";
 import type { PersonalStyleSectionProps } from "../../types";
 
 function formatLabel(key: string): string {
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (s) => s.toUpperCase());
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
 }
 
 function SpeakingStyleDetail({ style }: { style: Record<string, string> }) {
   const [expanded, setExpanded] = useState(false);
   const entries = Object.entries(style);
-  const visibleEntries = expanded ? entries : entries.slice(0, 4);
+  const visibleEntries = expanded ? entries : entries.slice(0, 6);
 
   return (
     <div className="col-span-full rounded-lg border border-purple-400/20 bg-purple-400/5 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold text-purple-400">
-          Gaya Ngomong (Speaking Style)
-        </p>
+        <p className="text-xs font-semibold text-purple-400">Speaking Style</p>
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -48,7 +44,10 @@ function SpeakingStyleDetail({ style }: { style: Record<string, string> }) {
 }
 
 export function PersonalStyleSection({ style }: PersonalStyleSectionProps) {
-  const { speakingStyle, ...otherStyles } = style as Record<string, string | Record<string, string>>;
+  const { speakingStyle, ...otherStyles } = style as Record<
+    string,
+    string | Record<string, string>
+  >;
 
   return (
     <div className="rounded-2xl border bg-background/30 p-5">
@@ -57,7 +56,9 @@ export function PersonalStyleSection({ style }: PersonalStyleSectionProps) {
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {speakingStyle && typeof speakingStyle === "object" && (
-          <SpeakingStyleDetail style={speakingStyle as Record<string, string>} />
+          <SpeakingStyleDetail
+            style={speakingStyle as Record<string, string>}
+          />
         )}
         {Object.entries(otherStyles).map(([key, value]) => (
           <div

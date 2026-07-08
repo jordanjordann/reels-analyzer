@@ -1,4 +1,4 @@
-import { useDeferredValue, useState, useEffect, useRef } from "react";
+import { useRef, useEffect, useDeferredValue, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CONTENT_KEYS, useContentSession, useCreateContentSession } from "@/api/talents/content/hooks";
 import { sendMessageStream } from "@/api/talents/content/api";
@@ -12,19 +12,26 @@ export function ChatSection({ talentId, sessionId, onSessionCreated, isSwitching
   const { data, isFetching } = useContentSession(talentId, sessionId);
   const { mutate: createSession } = useCreateContentSession(talentId);
   const [optimisticMessages, setOptimisticMessages] = useState<ContentMessage[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isCreatingFirstSession, setIsCreatingFirstSession] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevUserCountRef = useRef(0);
 
   const messages = data?.session?.messages ?? [];
   const combinedMessages = [...messages, ...optimisticMessages];
   const deferredMessages = useDeferredValue(combinedMessages);
-  const messageContentLength = combinedMessages.reduce((total, msg) => total + msg.content.length, 0);
   const hasStreamingAssistantContent = optimisticMessages.some((msg) => msg.role === "assistant" && msg.content.length > 0);
+  const userMessageCount = combinedMessages.filter((msg) => msg.role === "user").length;
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [combinedMessages.length, messageContentLength]);
+    if (userMessageCount > prevUserCountRef.current) {
+      const el = scrollContainerRef.current;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    prevUserCountRef.current = userMessageCount;
+  }, [userMessageCount]);
 
   function buildSendPayload(content: string, file?: File | null) {
     if (!file) return { content };
@@ -144,20 +151,17 @@ export function ChatSection({ talentId, sessionId, onSessionCreated, isSwitching
   const isLoading = (isFetching || isSwitchingSession) && messages.length === 0;
   const isDisabled = isStreaming || isCreatingFirstSession;
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
-        <div className="size-8 animate-pulse rounded-lg bg-secondary" />
-        <p className="text-sm">Loading messages...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto p-4">
-        <ChatMessageList messages={deferredMessages} isSending={isDisabled && !hasStreamingAssistantContent} talentId={talentId} sessionId={sessionId ?? undefined} />
-        <div ref={messagesEndRef} />
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
+        {isLoading ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+            <div className="size-8 animate-pulse rounded-lg bg-secondary" />
+            <p className="text-sm">Loading messages...</p>
+          </div>
+        ) : (
+          <ChatMessageList messages={deferredMessages} isSending={isDisabled && !hasStreamingAssistantContent} talentId={talentId} sessionId={sessionId ?? undefined} />
+        )}
       </div>
       <ChatInput onSend={handleSend} disabled={isDisabled} />
     </div>

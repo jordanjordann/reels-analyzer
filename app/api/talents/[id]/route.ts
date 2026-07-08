@@ -78,8 +78,8 @@ export async function POST(_request: Request, context: RouteContext<"/api/talent
           overall_score = ?,
           analysis_content = ?,
           analysis_reel_count = ?,
-          last_analyzed_at = datetime('now'),
-          updated_at = datetime('now')
+          last_analyzed_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z'),
+          updated_at = (strftime('%Y-%m-%dT%H:%M:%S', 'now') || 'Z')
         WHERE id = ?
       `,
       args: [analysis.overallViralIntelligenceScore, JSON.stringify(analysis), reelCount, id],

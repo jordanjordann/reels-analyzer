@@ -9,7 +9,9 @@ export function formatSessionPreview(session: ContentSessionSummary): string {
 
 export function formatSessionTime(dateStr: string): string {
   const now = Date.now();
-  const then = new Date(dateStr).getTime();
+  const normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T") + "Z";
+  const then = new Date(normalized).getTime();
+  if (isNaN(then)) return "just now";
   const diffMs = now - then;
   const diffMins = Math.floor(diffMs / 60_000);
   if (diffMins < 1) return "just now";

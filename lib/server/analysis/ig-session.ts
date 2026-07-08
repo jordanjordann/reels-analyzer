@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, type Browser, type BrowserContext } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import { IG_BASE } from "./constants";
 
@@ -16,7 +16,7 @@ async function getCredentials() {
   return { igUser, igPass };
 }
 
-async function detectOTP(page: import("playwright").Page): Promise<boolean> {
+async function detectOTP(page: Page): Promise<boolean> {
   const body = await page.evaluate(() => document.body.innerText);
   return (
     body.includes("Enter Confirmation Code") ||
@@ -27,7 +27,7 @@ async function detectOTP(page: import("playwright").Page): Promise<boolean> {
   );
 }
 
-async function dismissDialogues(page: import("playwright").Page) {
+async function dismissDialogues(page: Page) {
   const buttons = [
     'button:has-text("Not now")',
     'div[role="button"]:has-text("Not now")',
@@ -45,6 +45,41 @@ async function dismissDialogues(page: import("playwright").Page) {
     } catch {
       // element not found
     }
+  }
+}
+
+async function isInstagramSessionUsable(context: BrowserContext): Promise<boolean> {
+  const page = await context.newPage();
+
+  try {
+    await page.goto(IG_BASE, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await page.waitForTimeout(3000);
+
+    const url = page.url();
+    const body = await page.evaluate(() => document.body.innerText);
+    const cookies = await context.cookies(IG_BASE);
+    const hasSessionCookie = cookies.some((cookie) => cookie.name === "sessionid");
+    const isLoggedOutOrChallenged =
+      url.includes("/accounts/login") ||
+      url.includes("/challenge") ||
+      url.includes("/accounts/suspended") ||
+      body.includes("Enter Confirmation Code") ||
+      body.includes("Confirm it's you") ||
+      body.includes("confirmation code") ||
+      body.includes("Log in") ||
+      body.includes("Sign up");
+
+    if (!hasSessionCookie || isLoggedOutOrChallenged) {
+      console.warn(`Instagram saved session is not usable. url=${url} hasSessionCookie=${hasSessionCookie}`);
+      return false;
+    }
+
+    return true;
+  } finally {
+    await page.close();
   }
 }
 
@@ -67,11 +102,15 @@ export async function loadOrCreateContext(browser: Browser): Promise<BrowserCont
     try {
       const data = JSON.parse(readFileSync(SESSION_FILE, "utf-8"));
       if (data.cookies?.length) {
-        context.addCookies(data.cookies);
-        return context;
+        await context.addCookies(data.cookies);
+        if (await isInstagramSessionUsable(context)) {
+          return context;
+        }
+        await context.clearCookies();
       }
     } catch {
-      // corrupted file, proceed with login
+      await context.clearCookies();
+      // Corrupted or unverifiable saved session, proceed with login.
     }
   }
 
