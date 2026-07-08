@@ -124,7 +124,7 @@ export function AnalysisModal({ shortcode, username }: AnalysisModalProps) {
             <div className="aspect-[9/16] overflow-hidden rounded-xl border bg-secondary">
               {reel?.thumbnailUrl ? (
                 <img
-                  src={reel.thumbnailUrl}
+                  src={`/api/analyses/${encodeURIComponent(reel.igShortcode)}/thumbnail`}
                   alt={`Reel ${shortcode}`}
                   className="h-full w-full object-cover"
                 />

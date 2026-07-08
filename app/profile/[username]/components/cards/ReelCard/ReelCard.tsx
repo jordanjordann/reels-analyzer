@@ -20,7 +20,7 @@ export function ReelCard({
     >
       {reel.thumbnailUrl ? (
         <img
-          src={reel.thumbnailUrl}
+          src={`/api/analyses/${encodeURIComponent(reel.igShortcode)}/thumbnail`}
           alt={`Reel ${reel.igShortcode}`}
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
           loading="lazy"
