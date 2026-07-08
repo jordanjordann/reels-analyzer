@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/server/auth";
 import { db } from "@/shared/db";
 import { generateContent, generateContentStream } from "@/server/talents/content-generator";
-import { getActiveMemories } from "@/server/talents/content-memory";
+import { getActiveMemories, extractSessionMemories, upsertMemory } from "@/server/talents/content-memory";
 import { validateFile, extractFileContent } from "@/server/talents/file-processor";
 import type { ContentMessage } from "@/api/talents/content/types";
 
@@ -192,6 +192,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           };
 
           controller.enqueue(encoder.encode(formatSse("done", { userMessage, assistantMessage })));
+
+          const allMessages = [...previousMessages, userMessage, assistantMessage];
+          extractSessionMemories(allMessages)
+            .then((extracted) => {
+              for (const memory of extracted) {
+                upsertMemory(talentId, memory.category, memory.key, memory.value, memory.confidence, memory.source)
+                  .catch((err) => console.error("Failed to upsert memory:", err));
+              }
+            })
+            .catch((err) => console.error("Failed to extract memories:", err));
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           controller.enqueue(encoder.encode(formatSse("error", { error: errMsg })));
@@ -246,6 +256,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     content: assistantContent,
     createdAt: new Date().toISOString(),
   };
+
+  const allMessages = [...previousMessages, userMessage, assistantMessage];
+  extractSessionMemories(allMessages)
+    .then((extracted) => {
+      for (const memory of extracted) {
+        upsertMemory(talentId, memory.category, memory.key, memory.value, memory.confidence, memory.source)
+          .catch((err) => console.error("Failed to upsert memory:", err));
+      }
+    })
+    .catch((err) => console.error("Failed to extract memories:", err));
 
   return NextResponse.json({ userMessage, assistantMessage });
 }
