@@ -4,13 +4,17 @@ import { NextResponse } from "next/server";
 
 import { isAuthenticated } from "@/server/auth";
 import { db } from "@/shared/db";
-import { generateContent } from "@/server/talents/content-generator";
+import { generateContent, generateContentStream } from "@/server/talents/content-generator";
 import { validateFile, extractFileContent } from "@/server/talents/file-processor";
 import type { ContentMessage } from "@/api/talents/content/types";
 
 export const runtime = "nodejs";
 
 const MENTION_REGEX = /@([\w-]+)/g;
+
+function formatSse(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; sessionId: string }> }) {
   if (!(await isAuthenticated())) {
@@ -122,23 +126,92 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
   }
 
+  console.log("=== API: SEND MESSAGE TO GEMINI ===");
+  console.log("User message:", content);
+  console.log("Session content_type:", session.content_type);
+  console.log("Session topic:", session.topic);
+  console.log("Session extra_context:", session.extra_context ? String(session.extra_context).slice(0, 200) : "(none)");
+  console.log("File extra_context:", fileExtraContext ? fileExtraContext.slice(0, 200) : "(none)");
+  console.log("Mentioned usernames:", Array.from(mentionedUsernames));
+  console.log("Reference profiles:", referenceProfiles.map((p) => p.username));
+  console.log("Previous messages count:", previousMessages.length);
+
+  const combinedExtraContext = [String(session.extra_context ?? ""), fileExtraContext].filter(Boolean).join("\n\n");
+  const contentType = session.content_type ? String(session.content_type) as "video" | "carousel" | null : null;
+  const userMessage: ContentMessage = {
+    id: userMessageId,
+    sessionId,
+    role: "user",
+    content,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (request.headers.get("accept")?.includes("text/event-stream")) {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let assistantContent = "";
+
+        try {
+          controller.enqueue(encoder.encode(formatSse("userMessage", userMessage)));
+
+          for await (const chunk of generateContentStream(
+            analysisContent,
+            contentType,
+            previousMessages,
+            content,
+            combinedExtraContext,
+            String(session.topic ?? ""),
+            referenceProfiles,
+          )) {
+            assistantContent += chunk;
+            controller.enqueue(encoder.encode(formatSse("chunk", { content: chunk })));
+          }
+
+          const assistantMessageId = randomUUID();
+          await db.execute({
+            sql: "INSERT INTO content_messages (id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
+            args: [assistantMessageId, sessionId, assistantContent],
+          });
+
+          await db.execute({
+            sql: "UPDATE content_sessions SET updated_at = datetime('now') WHERE id = ?",
+            args: [sessionId],
+          });
+
+          const assistantMessage: ContentMessage = {
+            id: assistantMessageId,
+            sessionId,
+            role: "assistant",
+            content: assistantContent,
+            createdAt: new Date().toISOString(),
+          };
+
+          controller.enqueue(encoder.encode(formatSse("done", { userMessage, assistantMessage })));
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          controller.enqueue(encoder.encode(formatSse("error", { error: errMsg })));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  }
+
   let assistantContent: string;
   try {
-    console.log("=== API: SEND MESSAGE TO GEMINI ===");
-    console.log("User message:", content);
-    console.log("Session content_type:", session.content_type);
-    console.log("Session topic:", session.topic);
-    console.log("Session extra_context:", session.extra_context ? String(session.extra_context).slice(0, 200) : "(none)");
-    console.log("File extra_context:", fileExtraContext ? fileExtraContext.slice(0, 200) : "(none)");
-    console.log("Mentioned usernames:", Array.from(mentionedUsernames));
-    console.log("Reference profiles:", referenceProfiles.map((p) => p.username));
-    console.log("Previous messages count:", previousMessages.length);
-
-    const combinedExtraContext = [String(session.extra_context ?? ""), fileExtraContext].filter(Boolean).join("\n\n");
-
     assistantContent = await generateContent(
       analysisContent,
-      session.content_type ? String(session.content_type) as "video" | "carousel" | null : null,
+      contentType,
       previousMessages,
       content,
       combinedExtraContext,
@@ -160,14 +233,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     sql: "UPDATE content_sessions SET updated_at = datetime('now') WHERE id = ?",
     args: [sessionId],
   });
-
-  const userMessage: ContentMessage = {
-    id: userMessageId,
-    sessionId,
-    role: "user",
-    content,
-    createdAt: new Date().toISOString(),
-  };
 
   const assistantMessage: ContentMessage = {
     id: assistantMessageId,

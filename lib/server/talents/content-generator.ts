@@ -7,17 +7,6 @@ type ContentType = "video" | "carousel" | null;
 type GeminiContentRole = "user" | "model";
 type GeminiContent = { role: GeminiContentRole; parts: [{ text: string }] };
 
-function getContentTypeInstruction(contentType: ContentType): string {
-  switch (contentType) {
-    case "video":
-      return "Write a video script in the talent's voice. Include: hook, body, CTA. Target duration: 30-60 seconds.";
-    case "carousel":
-      return "Write Instagram carousel slide content in the talent's voice. Each slide should have a headline and body text. Target: 5-10 slides.";
-    default:
-      return "";
-  }
-}
-
 type ReferenceProfile = {
   username: string;
   analysisContent: string;
@@ -25,28 +14,32 @@ type ReferenceProfile = {
 
 export function buildContentSystemInstruction(
   analysisContent: string,
-  contentType: ContentType,
+  _contentType: ContentType,
   extraContext: string,
   topic: string,
   referenceProfiles: ReferenceProfile[],
 ): string {
-  const typeInstruction = getContentTypeInstruction(contentType);
-
   const parts = [
     "You are a creative content strategist. Use the following talent analysis to inform your responses. Write in the talent's voice and style.",
+    "Adapt your output format based on the user's request (e.g., video script, carousel slides, caption ideas).",
+    "\nIMPORTANT — Match the Talent's Speaking Style (Gaya Ngomong):",
+    "- Use the EXACT pronouns they use (gue/elu, aku/kamu, saya/anda, etc.)",
+    "- Match their formality level (formal, semi-formal, santai, very-santai)",
+    "- Use their preferred word choices (e.g. 'butuh' not 'perlu' if they say 'butuh', 'banget' not 'sangat' if they say 'banget')",
+    "- Include their characteristic particles (deh, sih, dong, lah, kok, kan, ya, nih, tuh) if they use them",
+    "- Mirror their sentence structure patterns and pacing",
+    "- Use their common expressions and catchphrases naturally",
+    "- Match their code-switching ratio (Bahasa Indonesia + English mix) if applicable",
+    "- Match their directness level and humor style",
+    "- NEVER use a different register than what the talent naturally uses",
   ];
 
-  if (typeInstruction) {
-    parts.push(typeInstruction);
-  }
-
-  parts.push(
-    `\nHere is the talent's analysis:\n${analysisContent}`,
-  );
+  parts.push(`\nHere is the talent's analysis:\n${analysisContent}`);
 
   if (referenceProfiles.length > 0) {
-    const refParts = referenceProfiles.map((ref) =>
-      `\nReference profile @${ref.username} (use their style as inspiration, but write in the primary talent's voice):\n${ref.analysisContent}`,
+    const refParts = referenceProfiles.map(
+      (ref) =>
+        `\nReference profile @${ref.username} (use their style as inspiration, but write in the primary talent's voice):\n${ref.analysisContent}`,
     );
     parts.push("Reference profiles for style inspiration:", ...refParts);
   }
@@ -61,7 +54,11 @@ export function buildContentSystemInstruction(
 
   parts.push(
     "\nOutput format: Plain text script (not JSON). Write in Bahasa Indonesia.",
-    "\nIMPORTANT — Markdown Tables: When the user asks for a table, follow these rules strictly:",
+    "\nIMPORTANT — Video Requests: If the user asks for a video script (Reels/Shorts), you MUST include:",
+    "1. A table with columns: Detik, Visual, Teks Popup.",
+    "2. A section 'Insight: Why This Works' explaining psychological triggers and retention strategy.",
+    "3. A section '3 Caption Suggestions' with hooks, hashtags, and CTAs.",
+    "\nIMPORTANT — Markdown Tables: When generating a table, follow these rules strictly:",
     "- Each row MUST be on exactly ONE line — no newlines inside any cell.",
     "- Use `<br>` for line breaks within a cell (e.g., `Line 1<br>Line 2`).",
     "- Separate every cell with ` | ` (space-pipe-space).",
@@ -69,7 +66,7 @@ export function buildContentSystemInstruction(
     "- Keep rows consecutive (no blank lines) — spacing is handled by CSS.",
     "Example of a correct table:",
     "```",
-    "| Column A | Column B | Column C |",
+    "| Detik | Visual | Teks popup |",
     "|---|---|---|",
     "| Value 1 | Value 2 | Value 3 |",
     "| Value 4 | Line A<br>Line B | Value 6 |",
@@ -81,9 +78,20 @@ export function buildContentSystemInstruction(
 
 function formatMessageHistory(messages: ContentMessage[]): GeminiContent[] {
   return messages.map((msg) => ({
-    role: msg.role === "assistant" ? ("model" as GeminiContentRole) : ("user" as GeminiContentRole),
+    role:
+      msg.role === "assistant"
+        ? ("model" as GeminiContentRole)
+        : ("user" as GeminiContentRole),
     parts: [{ text: msg.content }],
   }));
+}
+
+function createModel(apiKey: string, systemInstruction: string) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  return genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    systemInstruction,
+  });
 }
 
 export async function generateContent(
@@ -100,20 +108,25 @@ export async function generateContent(
     throw new Error("GEMINI_API_KEY environment variable is not set.");
   }
 
-  const systemInstruction = buildContentSystemInstruction(analysisContent, contentType, extraContext, topic, referenceProfiles);
+  const systemInstruction = buildContentSystemInstruction(
+    analysisContent,
+    contentType,
+    extraContext,
+    topic,
+    referenceProfiles,
+  );
 
   console.log("=== CONTENT GENERATOR SYSTEM PROMPT ===");
   console.log(systemInstruction);
   console.log("=== END SYSTEM PROMPT ===");
-  console.log("Reference profiles:", referenceProfiles.map((r) => r.username));
+  console.log(
+    "Reference profiles:",
+    referenceProfiles.map((r) => r.username),
+  );
   console.log("Topic:", topic);
   console.log("User message:", userMessage);
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
-    systemInstruction,
-  });
+  const model = createModel(apiKey, systemInstruction);
 
   const history = formatMessageHistory(messageHistory);
   const contents: GeminiContent[] = [
@@ -127,4 +140,47 @@ export async function generateContent(
   );
 
   return result.response.text();
+}
+
+export async function* generateContentStream(
+  analysisContent: string,
+  contentType: ContentType,
+  messageHistory: ContentMessage[],
+  userMessage: string,
+  extraContext: string,
+  topic: string,
+  referenceProfiles: ReferenceProfile[],
+): AsyncGenerator<string, void, unknown> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY environment variable is not set.");
+  }
+
+  const systemInstruction = buildContentSystemInstruction(
+    analysisContent,
+    contentType,
+    extraContext,
+    topic,
+    referenceProfiles,
+  );
+
+  const model = createModel(apiKey, systemInstruction);
+
+  const history = formatMessageHistory(messageHistory);
+  const contents: GeminiContent[] = [
+    ...history,
+    { role: "user", parts: [{ text: userMessage }] },
+  ];
+
+  const result = await withRetry(
+    () => model.generateContentStream({ contents }),
+    "Content generator Gemini stream call",
+  );
+
+  for await (const chunk of result.stream) {
+    const text = chunk.text();
+    if (text) {
+      yield text;
+    }
+  }
 }

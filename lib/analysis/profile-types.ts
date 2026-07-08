@@ -16,8 +16,30 @@ export type AudiencePsychologyPattern = {
   insight: string;
 };
 
+export type SpeakingStyle = {
+  overallDescription: string;
+  formalityLevel: "formal" | "semi-formal" | "santai" | "very-santai" | "mixed";
+  formalityNotes: string;
+  pronounUsage: string;
+  pronounExamples: string;
+  wordChoicePreferences: string;
+  wordChoiceExamples: string;
+  slangAndColloquialisms: string;
+  sentenceStructure: string;
+  commonExpressions: string;
+  codeSwitching: string;
+  particleUsage: string;
+  particleExamples: string;
+  regionalInfluences: string;
+  emphasisPatterns: string;
+  humorStyle: string;
+  pacingAndRhythm: string;
+  directnessLevel: string;
+  politenessMarkers: string;
+};
+
 export type PersonalStyle = {
-  speakingStyle: string;
+  speakingStyle: SpeakingStyle;
   interactionStyle: string;
   visualStyle: string;
   contentStructure: string;
@@ -94,7 +116,34 @@ function validateProfileAnalysis(parsed: unknown): ProfileAnalysis | null {
   const personalStyle = obj.personalStyle as Record<string, unknown>;
   const requiredStyleFields = ["speakingStyle", "interactionStyle", "visualStyle", "contentStructure", "toneAndVibe", "signatureElements"];
   for (const key of requiredStyleFields) {
-    if (typeof personalStyle[key] !== "string") return null;
+    if (key === "speakingStyle") {
+      if (typeof personalStyle[key] !== "object" || !personalStyle[key]) return null;
+    } else {
+      if (typeof personalStyle[key] !== "string") return null;
+    }
+  }
+
+  const speakingStyle = personalStyle.speakingStyle as Record<string, unknown>;
+  const requiredSpeakingStyleFields = [
+    "overallDescription", "formalityLevel", "formalityNotes",
+    "pronounUsage", "pronounExamples",
+    "wordChoicePreferences", "wordChoiceExamples",
+    "slangAndColloquialisms", "sentenceStructure",
+    "commonExpressions", "codeSwitching",
+    "particleUsage", "particleExamples",
+    "regionalInfluences", "emphasisPatterns",
+    "humorStyle", "pacingAndRhythm",
+    "directnessLevel", "politenessMarkers",
+  ];
+  for (const key of requiredSpeakingStyleFields) {
+    if (typeof speakingStyle[key] !== "string") {
+      speakingStyle[key] = "";
+    }
+  }
+
+  const validFormalityLevels = ["formal", "semi-formal", "santai", "very-santai", "mixed"];
+  if (!validFormalityLevels.includes(speakingStyle.formalityLevel as string)) {
+    speakingStyle.formalityLevel = "mixed";
   }
 
   return obj as ProfileAnalysis;

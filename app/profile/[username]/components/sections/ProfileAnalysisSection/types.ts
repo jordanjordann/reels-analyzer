@@ -28,8 +28,14 @@ export interface RecurringRedFlagsCardProps {
   flags: string[];
 }
 
+export interface SpeakingStyleFieldProps {
+  label: string;
+  value: string;
+  icon?: string;
+}
+
 export interface PersonalStyleSectionProps {
-  style: Record<string, string>;
+  style: Record<string, string | Record<string, string>>;
 }
 
 export interface AverageScorecardSectionProps {

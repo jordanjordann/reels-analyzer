@@ -16,12 +16,14 @@ export type SessionCardProps = {
   isActive: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onPrefetch: (id: string) => void;
 };
 
 export type ChatSectionProps = {
   talentId: string;
   sessionId: string | null;
   onSessionCreated: (sessionId: string) => void;
+  isSwitchingSession?: boolean;
 };
 
 export type ChatMessageListProps = {

@@ -64,7 +64,7 @@ export function TalentAnalysisSection({ talentId }: TalentAnalysisSectionProps) 
       </div>
 
       {analysis.personalStyle && (
-        <PersonalStyleSection style={analysis.personalStyle as Record<string, string>} />
+        <PersonalStyleSection style={analysis.personalStyle as unknown as Record<string, string | Record<string, string>>} />
       )}
 
       <AverageScorecardSection scorecard={analysis.averageScorecard} />

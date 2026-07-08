@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { PlusIcon } from "lucide-react";
 import type { ContentGeneratorSectionProps } from "./types";
 import { SessionList } from "./components/lists/SessionList";
@@ -8,6 +8,7 @@ import { ChatSection } from "./components/sections/ChatSection";
 
 export function ContentGeneratorSection({ talentId }: ContentGeneratorSectionProps) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isSwitchingSession, startSessionTransition] = useTransition();
 
   function handleSessionCreated(sessionId: string) {
     setActiveSessionId(sessionId);
@@ -15,6 +16,12 @@ export function ContentGeneratorSection({ talentId }: ContentGeneratorSectionPro
 
   function handleNewSession() {
     setActiveSessionId(null);
+  }
+
+  function handleSelectSession(sessionId: string) {
+    startSessionTransition(() => {
+      setActiveSessionId(sessionId);
+    });
   }
 
   return (
@@ -36,14 +43,19 @@ export function ContentGeneratorSection({ talentId }: ContentGeneratorSectionPro
           <SessionList
             talentId={talentId}
             activeSessionId={activeSessionId}
-            onSelect={setActiveSessionId}
+            onSelect={handleSelectSession}
             onDelete={(id: string) => {
               if (activeSessionId === id) setActiveSessionId(null);
             }}
           />
         </div>
         <div className="flex-1 overflow-hidden rounded-xl border bg-background/50">
-          <ChatSection talentId={talentId} sessionId={activeSessionId} onSessionCreated={handleSessionCreated} />
+          <ChatSection
+            talentId={talentId}
+            sessionId={activeSessionId}
+            onSessionCreated={handleSessionCreated}
+            isSwitchingSession={isSwitchingSession}
+          />
         </div>
       </div>
     </div>

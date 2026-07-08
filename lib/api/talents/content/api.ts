@@ -1,5 +1,33 @@
 import { fetchJson } from "@/shared/api";
-import type { ListSessionsResponse, SessionDetailResponse, SendMessageResponse, CreateSessionBody, SendMessageBody } from "./types";
+import type { ListSessionsResponse, SessionDetailResponse, SendMessageResponse, CreateSessionBody, SendMessageBody, ContentMessage } from "./types";
+
+type SendMessageStreamHandlers = {
+  onUserMessage?: (message: ContentMessage) => void;
+  onChunk?: (chunk: string) => void;
+  onDone?: (response: SendMessageResponse) => void;
+  onError?: (error: string) => void;
+};
+
+function parseSseEvent(eventText: string): { event: string; data: unknown } | null {
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of eventText.split("\n")) {
+    if (line.startsWith("event: ")) {
+      event = line.slice("event: ".length);
+    }
+    if (line.startsWith("data: ")) {
+      dataLines.push(line.slice("data: ".length));
+    }
+  }
+
+  if (dataLines.length === 0) return null;
+
+  return {
+    event,
+    data: JSON.parse(dataLines.join("\n")),
+  };
+}
 
 export async function getContentSessions(talentId: string): Promise<ListSessionsResponse> {
   return fetchJson<ListSessionsResponse>(`/api/talents/${encodeURIComponent(talentId)}/content/sessions`);
@@ -50,4 +78,75 @@ export async function sendMessage(talentId: string, sessionId: string, payload: 
       body: JSON.stringify(payload),
     },
   );
+}
+
+export async function sendMessageStream(
+  talentId: string,
+  sessionId: string,
+  payload: SendMessageBody | FormData,
+  handlers: SendMessageStreamHandlers = {},
+): Promise<SendMessageResponse> {
+  const url = `/api/talents/${encodeURIComponent(talentId)}/content/sessions/${encodeURIComponent(sessionId)}/messages`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: payload instanceof FormData
+      ? { Accept: "text/event-stream" }
+      : { Accept: "text/event-stream", "Content-Type": "application/json" },
+    body: payload instanceof FormData ? payload : JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || `Request failed with status ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let doneResponse: SendMessageResponse | null = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const eventText of events) {
+      const parsed = parseSseEvent(eventText);
+      if (!parsed) continue;
+
+      if (parsed.event === "userMessage") {
+        handlers.onUserMessage?.(parsed.data as ContentMessage);
+      }
+
+      if (parsed.event === "chunk") {
+        const data = parsed.data as { content?: string };
+        if (data.content) handlers.onChunk?.(data.content);
+      }
+
+      if (parsed.event === "done") {
+        doneResponse = parsed.data as SendMessageResponse;
+        handlers.onDone?.(doneResponse);
+      }
+
+      if (parsed.event === "error") {
+        const data = parsed.data as { error?: string };
+        const error = data.error ?? "Streaming request failed.";
+        handlers.onError?.(error);
+        throw new Error(error);
+      }
+    }
+  }
+
+  if (!doneResponse) {
+    throw new Error("Streaming response ended before completion.");
+  }
+
+  return doneResponse;
 }

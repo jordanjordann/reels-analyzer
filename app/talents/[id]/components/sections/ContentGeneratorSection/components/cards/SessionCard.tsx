@@ -3,7 +3,7 @@ import { cn } from "@/shared/utils";
 import type { SessionCardProps } from "../../types";
 import { formatSessionPreview, formatSessionTime } from "../../helpers";
 
-export function SessionCard({ session, isActive, onSelect, onDelete }: SessionCardProps) {
+export function SessionCard({ session, isActive, onSelect, onDelete, onPrefetch }: SessionCardProps) {
   return (
     <div
       className={cn(
@@ -11,6 +11,8 @@ export function SessionCard({ session, isActive, onSelect, onDelete }: SessionCa
         isActive ? "bg-secondary" : "hover:bg-secondary/50",
       )}
       onClick={() => onSelect(session.id)}
+      onFocus={() => onPrefetch(session.id)}
+      onMouseEnter={() => onPrefetch(session.id)}
     >
       <div className="mt-0.5 shrink-0">
         <MessageSquareIcon className="size-4 text-muted-foreground" aria-hidden="true" />

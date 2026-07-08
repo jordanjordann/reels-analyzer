@@ -84,7 +84,27 @@ You MUST return your analysis as a JSON object with this exact structure:
   "bottomReels": [{ "shortcode": "DEF456", "score": 32 }],
   "growthSuggestions": ["specific experiment or strategy to try next"],
   "personalStyle": {
-    "speakingStyle": "pace, energy, delivery style, formality level",
+    "speakingStyle": {
+      "overallDescription": "comprehensive description of how this creator speaks — their linguistic personality, register, and verbal identity",
+      "formalityLevel": "formal | semi-formal | santai | very-santai | mixed",
+      "formalityNotes": "detailed explanation of their formality level — when they shift registers, what triggers formality changes, how consistent they are across content",
+      "pronounUsage": "which pronouns they use: gue/elu (Jakarta slang), aku/kamu (informal standard), saya/anda (formal), kita/kita orang, dll — describe their default and any context-dependent switching",
+      "pronounExamples": "exact examples of pronoun usage from their content, e.g. 'Gue mau share...', 'Kalian pasti pernah...', 'Aku tuh selalu...'",
+      "wordChoicePreferences": "their preferred vocabulary register — e.g. 'butuh' vs 'perlu' vs 'pengen' vs 'ingin', 'banget' vs 'sangat', 'gak' vs 'tidak' vs 'nggak', 'udah' vs 'sudah', 'aja' vs 'saja', 'yang' vs 'yg', 'sama' vs 'dengan'. Describe what level of Bahasa Indonesia they naturally use.",
+      "wordChoiceExamples": "exact examples of characteristic word choices from their content, e.g. 'Gue butuh banget...', 'Kamu harus coba...', 'Ini sangat penting...'",
+      "slangAndColloquialisms": "slang words, abbreviations, and colloquial expressions they use — e.g. 'btw', 'jujurly', 'which is', 'literally', 'parah', 'gila', 'anjay', 'wkwk', 'guys', 'bestie', 'spill', 'relate', 'valid'. Note any English code-mixing patterns.",
+      "sentenceStructure": "typical sentence patterns — short punchy sentences vs long explanations, use of rhetorical questions, how they build arguments, use of filler words like 'jadi', 'nah', 'gitu loh', 'kan', 'ya'",
+      "commonExpressions": "recurring phrases, verbal tics, catchphrases, transition words they always use — e.g. 'Oke guys', 'Jadi begini', 'Coba bayangin', 'Trust me', 'Seriusan'",
+      "codeSwitching": "how and when they mix languages (Bahasa Indonesia + English, regional languages, etc.) — describe the ratio, context, and naturalness of their code-switching",
+      "particleUsage": "how they use Indonesian particles like 'deh', 'sih', 'dong', 'lah', 'kok', 'kan', 'ya', 'nih', 'tuh', 'loh' — which ones they favor and in what contexts",
+      "particleExamples": "exact examples showing particle usage, e.g. 'Kan udah gue bilang...', 'Enak aja sih...', 'Coba dong...', 'Gitu loh...'",
+      "regionalInfluences": "any regional language influences in their speech — Javanese, Sundanese, Batak, Betawi, Manado, etc. — and how it affects their Indonesian (accent, vocabulary, grammar patterns)",
+      "emphasisPatterns": "how they emphasize points — repetition, volume changes, strategic pauses, hand gestures combined with speech, rhetorical questions, direct address",
+      "humorStyle": "how they use humor in speech — sarcasm, self-deprecation, wordplay, exaggeration, deadpan, physical comedy — and how natural it feels",
+      "pacingAndRhythm": "their speech tempo — fast-paced and energetic, slow and deliberate, varied with dramatic pauses, consistent conversational rhythm",
+      "directnessLevel": "how direct or indirect they are — do they say things straight or use metaphors, stories, and indirect approaches? Do they use euphemisms?",
+      "politenessMarkers": "how they show politeness or respect — use of 'mas/mbak', 'kak', 'pak/bu', honorifics, softening words, hedging language"
+    },
     "interactionStyle": "how they engage audience (questions, humor, authority, etc.)",
     "visualStyle": "editing patterns, text overlay usage, camera framing, aesthetic consistency",
     "contentStructure": "how they organize videos (listicle, story arc, tutorial, etc.)",
@@ -102,6 +122,7 @@ Rules:
 - topReels should list the 3 highest-scoring reels
 - bottomReels should list the 3 lowest-scoring reels
 - growthSuggestions should be specific, actionable, and based on the weaknesses identified
+- personalStyle should be detailed — especially speakingStyle (gaya ngomong), which must capture their exact pronoun usage, formality level, word choices, particles, and linguistic patterns. Every sub-field must be a substantive paragraph with concrete observed examples.
 
 Return ONLY the JSON object. Do not include markdown code fences, explanations, or any text outside the JSON. All text fields must be in Bahasa Indonesia.`;
 }
@@ -203,7 +224,8 @@ export async function generateProfileAnalysis(username: string): Promise<Profile
   const profileAnalysis = parseProfileAnalysis(geminiResponse);
 
   if (!profileAnalysis) {
-    console.error(`Failed to parse profile analysis for @${username}. Raw response: ${geminiResponse.slice(0, 500)}`);
+    console.error(`Failed to parse profile analysis for @${username}.`);
+    console.error(`Raw response (first 1000 chars): ${geminiResponse.slice(0, 1000)}`);
     return null;
   }
 

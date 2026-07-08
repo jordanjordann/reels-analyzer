@@ -57,7 +57,7 @@ export function ProfileContent({
       </div>
 
       {profile.personalStyle && (
-        <PersonalStyleSection style={profile.personalStyle as Record<string, string>} />
+        <PersonalStyleSection style={profile.personalStyle as unknown as Record<string, string | Record<string, string>>} />
       )}
 
       <AverageScorecardSection scorecard={profile.averageScorecard} />
